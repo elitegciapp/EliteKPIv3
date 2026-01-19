@@ -1,0 +1,5 @@
+{
+  "name": "EliteKPI",
+  "description": "A finance-grade KPI tracking application for real estate agents, featuring deal pipeline management, mileage auto-calculation, and real-time business intelligence.",
+  "requestFramePermissions": []
+}
