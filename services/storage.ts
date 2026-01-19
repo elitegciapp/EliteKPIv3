@@ -5,6 +5,7 @@ const KEYS = {
   EXPENSES: 'realtor_kpi_expenses',
   ACTIVITIES: 'realtor_kpi_activities',
   SETTINGS: 'realtor_kpi_settings',
+  THEME: 'realtor_kpi_theme',
 };
 
 export const defaultSettings: KPISettings = {
@@ -45,5 +46,12 @@ export const StorageService = {
   },
   saveSettings: (settings: KPISettings) => {
     localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+  },
+  getTheme: (): 'light' | 'dark' => {
+    const data = localStorage.getItem(KEYS.THEME);
+    return (data === 'dark' || data === 'light') ? data : 'light';
+  },
+  saveTheme: (theme: 'light' | 'dark') => {
+    localStorage.setItem(KEYS.THEME, theme);
   }
 };

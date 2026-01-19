@@ -38,32 +38,39 @@ export const Dashboard = () => {
     return { name: new Date(2000, month, 1).toLocaleString('default', { month: 'short' }), gci };
   });
 
+  // Detect dark mode for chart colors
+  const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const chartBarColor = isDarkMode ? '#C9A24D' : '#0B1220'; // Gold in dark mode, Navy in light
+  const chartTextColor = isDarkMode ? '#7F889C' : '#8B93A6';
+  const chartGridColor = isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#E3E7ED';
+  const tooltipBg = isDarkMode ? '#111C33' : '#0B1220';
+
   return (
     <div className="space-y-6 md:space-y-8 animate-fade-in">
       <header className="mb-4 md:mb-8">
-        <h2 className="text-xl md:text-2xl font-bold text-navy">Dashboard</h2>
-        <p className="text-sm md:text-base text-slate-500 mt-1 font-normal">Financial Performance & Intelligence</p>
+        <h2 className="text-xl md:text-3xl font-bold text-navy dark:text-dark-text-primary font-serif">Dashboard</h2>
+        <p className="text-sm md:text-base text-slate-500 dark:text-dark-text-secondary mt-2 font-normal">Financial Performance & Intelligence</p>
       </header>
 
       {/* --- MOBILE KPI TILES (Condensed) --- */}
       <div className="grid grid-cols-2 gap-3 md:hidden">
-         <div className="bg-white p-4 border border-slate-200 rounded-sm">
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">GCI YTD</p>
-             <h3 className="text-xl font-bold text-navy mt-1">${gciYTD.toLocaleString()}</h3>
+         <div className="bg-white dark:bg-dark-surface p-4 border border-slate-200 dark:border-dark-border rounded-sm">
+             <p className="text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">GCI YTD</p>
+             <h3 className="text-xl font-bold text-navy dark:text-dark-text-primary mt-1 font-serif">${gciYTD.toLocaleString()}</h3>
          </div>
-         <div className="bg-white p-4 border border-slate-200 rounded-sm">
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Net YTD</p>
-             <h3 className={`text-xl font-bold mt-1 ${netIncomeYTD >= 0 ? 'text-navy' : 'text-red-600'}`}>
+         <div className="bg-white dark:bg-dark-surface p-4 border border-slate-200 dark:border-dark-border rounded-sm">
+             <p className="text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Net YTD</p>
+             <h3 className={`text-xl font-bold mt-1 font-serif ${netIncomeYTD >= 0 ? 'text-navy dark:text-dark-text-primary' : 'text-red-600'}`}>
                 ${netIncomeYTD.toLocaleString()}
              </h3>
          </div>
-         <div className="bg-white p-4 border border-slate-200 rounded-sm">
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Deals</p>
-             <h3 className="text-xl font-bold text-navy mt-1">{dealsClosedCount}</h3>
+         <div className="bg-white dark:bg-dark-surface p-4 border border-slate-200 dark:border-dark-border rounded-sm">
+             <p className="text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Deals</p>
+             <h3 className="text-xl font-bold text-navy dark:text-dark-text-primary mt-1 font-serif">{dealsClosedCount}</h3>
          </div>
-         <div className="bg-white p-4 border border-slate-200 rounded-sm">
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Close Rate</p>
-             <h3 className="text-xl font-bold text-navy mt-1">{closeRate.toFixed(1)}%</h3>
+         <div className="bg-white dark:bg-dark-surface p-4 border border-slate-200 dark:border-dark-border rounded-sm">
+             <p className="text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Close Rate</p>
+             <h3 className="text-xl font-bold text-navy dark:text-dark-text-primary mt-1 font-serif">{closeRate.toFixed(1)}%</h3>
          </div>
       </div>
 
@@ -71,121 +78,125 @@ export const Dashboard = () => {
       <div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* Annual Goal Progress */}
-        <div className="bg-white p-6 border border-slate-200 rounded-sm">
+        <div className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Annual Goal</p>
-                    <h3 className="text-2xl font-bold text-navy mt-2">${gciYTD.toLocaleString()}</h3>
+                    <p className="text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Annual Goal</p>
+                    <h3 className="text-3xl font-bold text-navy dark:text-dark-text-primary mt-2 font-serif">${gciYTD.toLocaleString()}</h3>
                 </div>
-                <div className="bg-slate-50 p-2 rounded-full text-gold"><Target size={20}/></div>
+                <div className="bg-slate-50 dark:bg-white/5 p-2 rounded-full text-gold"><Target size={20}/></div>
             </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-slate-100 dark:bg-white/5 h-1.5 rounded-full overflow-hidden">
                 <div 
                     className="bg-gold h-full" 
                     style={{ width: `${Math.min((gciYTD / settings.annualGCIGoal) * 100, 100)}%` }}
                 ></div>
             </div>
-            <p className="text-xs text-slate-400 mt-3 text-right font-medium">Target: ${settings.annualGCIGoal.toLocaleString()}</p>
+            <p className="text-xs text-slate-400 dark:text-dark-text-muted mt-3 text-right font-medium">Target: ${settings.annualGCIGoal.toLocaleString()}</p>
         </div>
 
         {/* Net Income */}
-         <div className="bg-white p-6 border border-slate-200 rounded-sm">
+         <div className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Net Income YTD</p>
-                    <h3 className={`text-2xl font-bold mt-2 ${netIncomeYTD >= 0 ? 'text-navy' : 'text-red-600'}`}>
+                    <p className="text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Net Income YTD</p>
+                    <h3 className={`text-3xl font-bold mt-2 font-serif ${netIncomeYTD >= 0 ? 'text-navy dark:text-dark-text-primary' : 'text-red-600'}`}>
                         ${netIncomeYTD.toLocaleString()}
                     </h3>
                 </div>
-                <div className="bg-slate-50 p-2 rounded-full text-gold"><DollarSign size={20}/></div>
+                <div className="bg-slate-50 dark:bg-white/5 p-2 rounded-full text-gold"><DollarSign size={20}/></div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">After ${totalExpensesYTD.toLocaleString()} expenses</p>
+            <p className="text-xs text-slate-400 dark:text-dark-text-muted mt-2">After ${totalExpensesYTD.toLocaleString()} expenses</p>
         </div>
 
         {/* Closed Deals */}
-        <div className="bg-white p-6 border border-slate-200 rounded-sm">
+        <div className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deals Closed</p>
-                    <h3 className="text-2xl font-bold text-navy mt-2">{dealsClosedCount}</h3>
+                    <p className="text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Deals Closed</p>
+                    <h3 className="text-3xl font-bold text-navy dark:text-dark-text-primary mt-2 font-serif">{dealsClosedCount}</h3>
                 </div>
-                <div className="bg-slate-50 p-2 rounded-full text-gold"><CheckCircle size={20}/></div>
+                <div className="bg-slate-50 dark:bg-white/5 p-2 rounded-full text-gold"><CheckCircle size={20}/></div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">Avg. Comm: ${avgCommission.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            <p className="text-xs text-slate-400 dark:text-dark-text-muted mt-2">Avg. Comm: ${avgCommission.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
         </div>
 
          {/* Close Rate */}
-         <div className="bg-white p-6 border border-slate-200 rounded-sm">
+         <div className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Close Rate</p>
-                    <h3 className="text-2xl font-bold text-navy mt-2">{closeRate.toFixed(1)}%</h3>
+                    <p className="text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Close Rate</p>
+                    <h3 className="text-3xl font-bold text-navy dark:text-dark-text-primary mt-2 font-serif">{closeRate.toFixed(1)}%</h3>
                 </div>
-                <div className="bg-slate-50 p-2 rounded-full text-gold"><PieChart size={20}/></div>
+                <div className="bg-slate-50 dark:bg-white/5 p-2 rounded-full text-gold"><PieChart size={20}/></div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">Target: {settings.targetCloseRate}%</p>
+            <p className="text-xs text-slate-400 dark:text-dark-text-muted mt-2">Target: {settings.targetCloseRate}%</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Chart */}
-        <div className="lg:col-span-2 bg-white p-6 border border-slate-200 rounded-sm">
-            <h3 className="text-sm font-semibold text-navy uppercase tracking-wide mb-6">Monthly Revenue</h3>
-            <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={monthlyData}>
-                        <CartesianGrid strokeDasharray="0" vertical={false} stroke="#E6E8EC" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#8B93A6'}} dy={10} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#8B93A6'}} tickFormatter={(value) => `$${value/1000}k`} />
-                        <Tooltip 
-                            cursor={{fill: '#F7F8FA'}}
-                            contentStyle={{backgroundColor: '#0F172A', border: 'none', borderRadius: '4px', color: '#fff'}}
-                            itemStyle={{color: '#fff', fontSize: '12px'}}
-                            formatter={(value: number) => [`$${value.toLocaleString()}`, 'GCI']}
-                        />
-                        <Bar dataKey="gci" fill="#0F172A" radius={[2, 2, 0, 0]} barSize={40} />
-                    </BarChart>
-                </ResponsiveContainer>
+        <div className="lg:col-span-2 bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
+            <h3 className="text-lg font-semibold text-navy dark:text-dark-text-primary font-serif mb-6">Monthly Revenue</h3>
+            
+            {/* Horizontal Scroll Container for Mobile */}
+            <div className="overflow-x-auto pb-4 -mx-6 px-6 md:mx-0 md:px-0">
+                <div className="h-64 min-w-[600px] md:min-w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={monthlyData}>
+                            <CartesianGrid strokeDasharray="0" vertical={false} stroke={chartGridColor} />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: chartTextColor, fontFamily: 'Inter'}} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: chartTextColor, fontFamily: 'Inter'}} tickFormatter={(value) => `$${value/1000}k`} />
+                            <Tooltip 
+                                cursor={{fill: isDarkMode ? 'rgba(255,255,255,0.03)' : '#F4F6F9'}}
+                                contentStyle={{backgroundColor: tooltipBg, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#fff', fontFamily: 'Inter'}}
+                                itemStyle={{color: '#fff', fontSize: '12px'}}
+                                formatter={(value: number) => [`$${value.toLocaleString()}`, 'GCI']}
+                            />
+                            <Bar dataKey="gci" fill={chartBarColor} radius={[2, 2, 0, 0]} barSize={40} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
 
         {/* Pipeline Health / Conversion Ratios */}
-        <div className="bg-white p-6 border border-slate-200 rounded-sm">
-            <h3 className="text-sm font-semibold text-navy uppercase tracking-wide mb-6">Pipeline Health</h3>
+        <div className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
+            <h3 className="text-lg font-semibold text-navy dark:text-dark-text-primary font-serif mb-6">Pipeline Health</h3>
             <div className="space-y-6">
                 
                 <div>
                     <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-500 font-medium">Leads to Appointments</span>
-                        <span className="font-bold text-navy">42%</span>
+                        <span className="text-slate-500 dark:text-dark-text-secondary font-medium">Leads to Appointments</span>
+                        <span className="font-bold text-navy dark:text-dark-text-primary font-serif">42%</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-1 rounded-full">
+                    <div className="w-full bg-slate-100 dark:bg-white/5 h-1 rounded-full">
                          <div className="bg-gold h-full rounded-full" style={{width: '42%'}}></div>
                     </div>
                 </div>
 
                 <div>
                     <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-500 font-medium">Appointments to Shows</span>
-                        <span className="font-bold text-navy">65%</span>
+                        <span className="text-slate-500 dark:text-dark-text-secondary font-medium">Appointments to Shows</span>
+                        <span className="font-bold text-navy dark:text-dark-text-primary font-serif">65%</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-1 rounded-full">
-                         <div className="bg-navy-light h-full rounded-full" style={{width: '65%'}}></div>
+                    <div className="w-full bg-slate-100 dark:bg-white/5 h-1 rounded-full">
+                         <div className="bg-navy-light dark:bg-slate-600 h-full rounded-full" style={{width: '65%'}}></div>
                     </div>
                 </div>
 
                  <div>
                     <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-500 font-medium">Shows to Offers</span>
-                        <span className="font-bold text-navy">28%</span>
+                        <span className="text-slate-500 dark:text-dark-text-secondary font-medium">Shows to Offers</span>
+                        <span className="font-bold text-navy dark:text-dark-text-primary font-serif">28%</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-1 rounded-full">
-                         <div className="bg-navy h-full rounded-full" style={{width: '28%'}}></div>
+                    <div className="w-full bg-slate-100 dark:bg-white/5 h-1 rounded-full">
+                         <div className="bg-navy dark:bg-slate-400 h-full rounded-full" style={{width: '28%'}}></div>
                     </div>
                 </div>
 
-                <div className="pt-6 border-t border-slate-100 mt-6">
-                    <p className="text-xs text-slate-400 leading-relaxed font-normal">
+                <div className="pt-6 border-t border-slate-100 dark:border-dark-border mt-6">
+                    <p className="text-xs text-slate-400 dark:text-dark-text-muted leading-relaxed font-normal">
                         Based on rolling 90-day pipeline activity.
                     </p>
                 </div>

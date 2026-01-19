@@ -6,8 +6,10 @@ import { Deals } from './components/Deals';
 import { Expenses } from './components/Expenses';
 import { Activities } from './components/Activities';
 import { Settings } from './components/Settings';
+import { LandingPage } from './components/LandingPage';
 
 export default function App() {
+  const [showLanding, setShowLanding] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const renderContent = () => {
@@ -20,6 +22,10 @@ export default function App() {
       default: return <Dashboard />;
     }
   };
+
+  if (showLanding) {
+    return <LandingPage onEnter={() => setShowLanding(false)} />;
+  }
 
   return (
     <AppProvider>

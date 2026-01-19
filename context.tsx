@@ -7,14 +7,17 @@ interface AppContextType {
   expenses: Expense[];
   activities: Activity[];
   settings: KPISettings;
+  theme: 'light' | 'dark';
   addDeal: (deal: Deal) => void;
   updateDeal: (deal: Deal) => void;
   deleteDeal: (id: string) => void;
   addExpense: (expense: Expense) => void;
+  updateExpense: (expense: Expense) => void;
   deleteExpense: (id: string) => void;
   addActivity: (activity: Activity) => void;
   deleteActivity: (id: string) => void;
   updateSettings: (settings: KPISettings) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
   getDealExpenses: (dealId: string) => Expense[];
   getDealNetCommission: (deal: Deal) => number;
 }
@@ -26,12 +29,22 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [settings, setSettings] = useState<KPISettings>(defaultSettings);
+  const [theme, setThemeState] = useState<'light' | 'dark'>(() => StorageService.getTheme());
 
   useEffect(() => {
     setDeals(StorageService.getDeals());
     setExpenses(StorageService.getExpenses());
     setActivities(StorageService.getActivities());
     setSettings(StorageService.getSettings());
+    
+    // Initial Theme Application
+    const storedTheme = StorageService.getTheme();
+    setThemeState(storedTheme);
+    if (storedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, []);
 
   const saveDeals = (newDeals: Deal[]) => {
@@ -58,11 +71,22 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const deleteDeal = (id: string) => {
-    saveDeals(deals.filter(d => d.id !== id));
+    // Cascading delete: Remove all expenses and activities linked to this deal
+    const updatedExpenses = expenses.filter(e => e.dealId !== id);
+    const updatedActivities = activities.filter(a => a.dealId !== id);
+    const updatedDeals = deals.filter(d => d.id !== id);
+
+    saveExpenses(updatedExpenses);
+    saveActivities(updatedActivities);
+    saveDeals(updatedDeals);
   };
 
   const addExpense = (expense: Expense) => {
     saveExpenses([...expenses, expense]);
+  };
+
+  const updateExpense = (updatedExpense: Expense) => {
+    saveExpenses(expenses.map(e => e.id === updatedExpense.id ? updatedExpense : e));
   };
 
   const deleteExpense = (id: string) => {
@@ -82,6 +106,16 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     StorageService.saveSettings(newSettings);
   };
 
+  const setTheme = (newTheme: 'light' | 'dark') => {
+    setThemeState(newTheme);
+    StorageService.saveTheme(newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
   const getDealExpenses = (dealId: string) => {
     return expenses.filter(e => e.dealId === dealId);
   };
@@ -98,14 +132,17 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
       expenses,
       activities,
       settings,
+      theme,
       addDeal,
       updateDeal,
       deleteDeal,
       addExpense,
+      updateExpense,
       deleteExpense,
       addActivity,
       deleteActivity,
       updateSettings,
+      setTheme,
       getDealExpenses,
       getDealNetCommission,
     }}>

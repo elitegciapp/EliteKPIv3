@@ -62,6 +62,7 @@ export interface Deal {
   grossCommission: number; // Required for closed
   closeDate: string | null; // ISO Date string, required for closed
   leadSource?: string;
+  leadSourceDetail?: string; // Specifics if Lead Source is "Other"
   notes?: string;
   createdAt: string;
 

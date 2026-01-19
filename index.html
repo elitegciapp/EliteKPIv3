@@ -3,38 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Realtor KPI Tracker</title>
+    <title>EliteKPI — Private Real Estate Intelligence</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
+              serif: ['Playfair Display', 'serif'],
             },
             colors: {
               slate: {
-                50: '#F7F8FA',  // App Background (Warm off-white)
-                100: '#F0F2F5', // Hover states
-                200: '#E6E8EC', // Borders
+                50: '#F4F6F9',  // App Background (Warm off-white canvas)
+                100: '#FAFBFC', // Secondary panels
+                200: '#E3E7ED', // Borders (Refined)
                 300: '#D1D5DB', 
                 400: '#8B93A6', // Muted labels
                 500: '#5B6475', // Secondary text
                 600: '#475569',
                 700: '#334155',
                 800: '#1E293B',
-                900: '#0B1220', // Primary Text (Deep, almost black)
+                900: '#0B1220', // Primary Text (Deep Navy)
               },
               navy: {
-                DEFAULT: '#0F172A', // Sidebar Background
-                light: '#1E293B',
+                DEFAULT: '#0B1220', // Primary Navy
+                light: '#101B34',   // Secondary Navy
               },
               gold: {
-                DEFAULT: '#C9A24D', // Primary Accent
-                muted: '#E6D7A3',   // Icons, Dividers
+                DEFAULT: '#C9A24D', // Primary Gold
+                muted: '#E3D29A',   // Muted Gold
                 hover: '#B08D40',
+              },
+              // Executive Dark Mode Palette
+              dark: {
+                bg: '#0A0F1A',       // App Background
+                surface: '#0F172A',  // Primary Surface (Cards)
+                panel: '#111C33',    // Secondary Panels
+                border: 'rgba(255, 255, 255, 0.06)',
+                text: {
+                  primary: '#E6EAF2',
+                  secondary: '#A8B0C2',
+                  muted: '#7F889C'
+                }
               }
+            },
+            backgroundImage: {
+              'luxury-gradient': 'linear-gradient(160deg, #0B1220 0%, #0F172A 60%, #101B34 100%)',
+              'luxury-gradient-dark': 'linear-gradient(160deg, #0B1220 0%, #0F172A 60%, #101B34 100%)',
+              'luxury-gradient-edge': 'linear-gradient(180deg, #0B1220 0%, #0F172A 88%, rgba(201,162,77,0.06) 100%)',
             },
             borderRadius: {
               sm: '6px', // "Border radius: 6px" override
@@ -43,7 +62,7 @@
               tight: '-0.01em',
               normal: '0',
               wide: '0.02em', // Sidebar items
-              wider: '0.04em', // KPI labels
+              wider: '0.06em', // KPI labels (increased from 0.04em)
             }
           },
         },
@@ -51,7 +70,11 @@
     </script>
     <style>
       body {
-        background-color: #F7F8FA;
+        background-color: #F4F6F9;
+      }
+      @media (prefers-color-scheme: dark) {
+        /* Default scrollbar styles if system is dark, though we handle app theme manually now. 
+           These stay as fallbacks or can be forced by the class. */
       }
       /* Custom scrollbar for cleaner look */
       ::-webkit-scrollbar {
@@ -59,7 +82,7 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #F7F8FA; 
+        background: #F4F6F9; 
       }
       ::-webkit-scrollbar-thumb {
         background: #D1D5DB; 
@@ -67,6 +90,20 @@
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #9CA3AF; 
+      }
+      
+      /* Dark mode scrollbar overrides when class is present */
+      html.dark body {
+        background-color: #0A0F1A;
+      }
+      html.dark ::-webkit-scrollbar-track {
+        background: #0A0F1A; 
+      }
+      html.dark ::-webkit-scrollbar-thumb {
+        background: #1E293B; 
+      }
+      html.dark ::-webkit-scrollbar-thumb:hover {
+        background: #334155; 
       }
     </style>
   <script type="importmap">
@@ -76,7 +113,9 @@
     "react": "https://esm.sh/react@^19.2.3",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "recharts": "https://esm.sh/recharts@^3.6.0"
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.2"
   }
 }
 </script>
