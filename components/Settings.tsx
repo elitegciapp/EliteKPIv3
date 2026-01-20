@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context';
-import { KPISettings, DealStatus, DealType } from '../types';
-import { Save, RefreshCw, FileText, Download, Moon, Sun } from 'lucide-react';
+import { KPISettings, DealStage } from '../types';
+import { Save, RefreshCw, FileText, Download, Moon, Sun, Database, Trash2 } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export const Settings = () => {
-  const { settings, updateSettings, deals, expenses, activities, theme, setTheme } = useApp();
+  const { settings, updateSettings, deals, expenses, activities, theme, setTheme, loadDemoData, clearData } = useApp();
   const [formData, setFormData] = useState<KPISettings>(settings);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -34,6 +35,25 @@ export const Settings = () => {
   const handleSave = () => {
     updateSettings(formData);
     setIsDirty(false);
+  };
+
+  const handleLoadDemo = () => {
+    if (window.confirm("Overwrite existing data with demo data?")) {
+        loadDemoData();
+        // Force reload to ensure fresh state from storage
+        setTimeout(() => {
+            window.location.reload();
+        }, 100);
+    }
+  };
+
+  const handleClearData = () => {
+      if (window.confirm("WARNING: This will delete ALL data. Continue?")) {
+          clearData();
+          setTimeout(() => {
+            window.location.reload();
+          }, 100);
+      }
   };
 
   // Math
@@ -74,11 +94,8 @@ export const Settings = () => {
 
     // 2. Filter Data
     const rangeDeals = deals.filter(d => {
-        // Use Close Date for Closed deals, Created Date for others? 
-        // Prompt says "Closed deals only" for Deals Summary but "Deals Closed" in KPI. 
-        // Usually reports show closed revenue in that period.
-        if (d.status === DealStatus.CLOSED && d.closeDate) {
-            const dDate = new Date(d.closeDate);
+        if (d.stage === DealStage.CLOSED && d.closedAt) {
+            const dDate = new Date(d.closedAt);
             return dDate >= start && dDate <= end;
         }
         return false;
@@ -95,46 +112,11 @@ export const Settings = () => {
     });
 
     // 3. Calculate KPIs
-    const gci = rangeDeals.reduce((sum, d) => sum + d.grossCommission, 0);
+    const gci = rangeDeals.reduce((sum, d) => sum + (d.actualGci || 0), 0);
     const totalExpenses = rangeExpenses.reduce((sum, e) => sum + e.totalCost, 0);
     const netIncome = gci - totalExpenses;
     const closedCount = rangeDeals.length;
     const avgComm = closedCount > 0 ? gci / closedCount : 0;
-    
-    // Close Rate for *this period* is hard because "Total Deals" usually means active pipeline. 
-    // Let's use Global Close Rate or calculate based on Deals Created in this period vs Closed in this period? 
-    // Standard is usually Closed / (Closed + Dead) in that period or just global. 
-    // Prompt says "Values must reflect only the selected date range".
-    // Let's look at deals *closed or dead* in this range.
-    const closedOrDeadInRange = deals.filter(d => {
-        // Check "end" date of the deal. CloseDate for Closed, maybe CreatedAt for others?
-        // Actually, without a "Dead Date", we can't accurately calc close rate for a specific historical window easily.
-        // We will default to Closed Deals / (Closed Deals + Dead Deals whose *created* date is in range? No.)
-        // Let's fallback to: Closed Count / (Closed Count + Dead Count in Range [if we had dead date])
-        // Since we don't have Dead Date, we might omit or just use Closed Count.
-        // Actually, "Close Rate" in PDF section says "Close Rate". 
-        // Let's use: Closed Deals in Range / Total Deals touched in range? No.
-        // Simplified: Closed Deals in Range / (Closed Deals in Range + Dead Deals Created in Range [Proxy])
-        return false; 
-    });
-    // Fallback: Just show the calculated rate based on (Closed In Range) / (Closed In Range + Dead In Range *if possible*) 
-    // We'll stick to a simple GCI/Expense focus if data is missing, but prompt asks for "Close Rate".
-    // I will use: (Closed Deals In Range) / (Total Deals *Closed* In Range + Total Deals *Created* In Range that are Dead? No.)
-    // Let's just use the count of Closed Deals vs Total Deals *Created* in that range?
-    // Let's use: Closed / (Closed + Dead) from *all time* if we can't scope it, OR
-    // Just use 0 if we can't calculate.
-    // Better: Closed Deals In Range / (All deals that were 'active' in range).
-    // Let's just output the Global Close Rate for context if specific isn't possible, OR
-    // Close Rate = Closed (in range) / (Closed (in range) + Dead (in range by some proxy)).
-    // I'll skip complex Close Rate logic to avoid errors and just show "N/A" if 0, or calculate if I can match the dashboard logic but scoped.
-    // Dashboard uses: Closed / (Closed + Dead). I will filter both by date range if I assume Dead deals have a date. They don't have a 'Dead Date'.
-    // I will exclude Close Rate from the specific range calculation to avoid misleading info, or just use the global close rate labeled "Global Close Rate". 
-    // *Correction*: The prompt says "Values must reflect only the selected date range".
-    // I will calculate: Closed Deals (Range) / Total Deals with CloseDate in Range. (Which is 100%).
-    // I'll calculate it as: Deals Closed (Range) / (Deals Closed (Range) + Deals *Created* in Range that are Dead). This is a decent proxy.
-    const deadInCreatedRange = deals.filter(d => d.status === DealStatus.DEAD && new Date(d.createdAt) >= start && new Date(d.createdAt) <= end).length;
-    const rangeCloseRate = (closedCount + deadInCreatedRange) > 0 ? (closedCount / (closedCount + deadInCreatedRange)) * 100 : 0;
-
 
     // 4. Build PDF
     // Header
@@ -188,7 +170,6 @@ export const Settings = () => {
     drawKPI("Net Income", `$${netIncome.toLocaleString()}`, 58);
     drawKPI("Deals Closed", closedCount.toString(), 102);
     drawKPI("Avg Comm.", `$${avgComm.toLocaleString(undefined, {maximumFractionDigits:0})}`, 146);
-    // drawKPI("Close Rate", `${rangeCloseRate.toFixed(1)}%`, 146); // No space for 5th box easily in row
 
     // Deals Table
     doc.setFont("times", "bold");
@@ -198,9 +179,9 @@ export const Settings = () => {
 
     const dealsData = rangeDeals.map(d => [
         d.name,
-        d.type,
-        d.closeDate || '-',
-        `$${d.grossCommission.toLocaleString()}`
+        d.dealSide,
+        d.closedAt || '-',
+        `$${(d.actualGci || 0).toLocaleString()}`
     ]);
 
     autoTable(doc, {
@@ -285,7 +266,7 @@ export const Settings = () => {
     });
 
     // Footer
-    const pageCount = doc.internal.getNumberOfPages();
+    const pageCount = (doc as any).internal.getNumberOfPages();
     for(let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
@@ -571,6 +552,36 @@ export const Settings = () => {
                   className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
                 />
               </div>
+            </div>
+          </section>
+
+          {/* DATA MANAGEMENT SECTION */}
+          <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm shadow-sm border-l-4 border-l-gold">
+            <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-dark-border pb-2">
+                 <Database className="text-gold" size={20} />
+                 <h3 className="text-sm font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider font-serif">Data Management</h3>
+            </div>
+            
+            <p className="text-sm text-slate-500 dark:text-dark-text-secondary mb-6 leading-relaxed">
+                Use these tools to populate the application with sample data for testing, or to clear all local records to start fresh.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                    onClick={handleLoadDemo}
+                    className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-navy dark:text-white border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-white/5 hover:bg-white hover:border-navy dark:hover:bg-white/10 dark:hover:border-gold transition-all rounded-sm uppercase tracking-wide"
+                >
+                    <RefreshCw size={16} />
+                    Load Demo Data
+                </button>
+
+                 <button
+                    onClick={handleClearData}
+                    className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all rounded-sm uppercase tracking-wide"
+                >
+                    <Trash2 size={16} />
+                    Clear All Data
+                </button>
             </div>
           </section>
 

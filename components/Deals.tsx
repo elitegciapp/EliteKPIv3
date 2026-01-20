@@ -1,108 +1,71 @@
+
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context';
-import { Deal, DealStatus, DealType, Expense, ExpenseType, ExpenseCategory } from '../types';
-import { Plus, Search, Filter, X, ChevronRight, DollarSign, Calendar, Clock, Percent, Trash2, AlertTriangle, Edit2, Fuel } from 'lucide-react';
+import { Deal, DealStage, DealSide, Expense, ExpenseType } from '../types';
+import { Plus, X, Fuel, Trash2, AlertTriangle, Calculator, Calendar } from 'lucide-react';
+import { DEAL_STAGES } from '../constants/dealStages';
+import { LEAD_SOURCES } from '../constants/leadSources';
 
-// Helper to calculate DOM based on status
-const calculateDOM = (deal: Partial<Deal>): number | null => {
-  if (deal.type !== DealType.SELLER || !deal.listingDate) return null;
-
-  const start = new Date(deal.listingDate).getTime();
-  let end = new Date().getTime(); // Default to today for Active
-
-  if (deal.status === DealStatus.PENDING && deal.underContractDate) {
-    end = new Date(deal.underContractDate).getTime();
-  } else if (deal.status === DealStatus.CLOSED && deal.closeDate) {
-    end = new Date(deal.closeDate).getTime();
-  } else if (deal.status === DealStatus.ACTIVE_LISTING) {
-    // end remains today
-  } else {
-    // For other statuses (Lead, Appointment), DOM usually doesn't apply or isn't calculated yet
-    return null;
-  }
-
-  const diffTime = Math.abs(end - start);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-  return diffDays >= 0 ? diffDays : 0;
+// Probability Helper (mapped to new stages)
+const getAutoProbability = (stage: string): number => {
+    switch (stage) {
+        case 'LEAD': return 1000; // 10%
+        case 'INITIAL_CONTACT': return 2000; // 20%
+        case 'SHOWING_OR_ACTIVE': return 5000; // 50%
+        case 'UNDER_CONTRACT': return 9000; // 90%
+        case 'PENDING_CLOSE': return 9500; // 95%
+        case 'CLOSED': return 10000; // 100%
+        default: return 1000;
+    }
 };
-
-// Helper to calculate Sale-to-List Ratio
-const calculateSaleToListRatio = (deal: Partial<Deal>): number | null => {
-  if (deal.type !== DealType.SELLER || deal.status !== DealStatus.CLOSED || !deal.closedSalePrice || !deal.listPrice) {
-    return null;
-  }
-  return (deal.closedSalePrice / deal.listPrice) * 100;
-};
-
-const BuyerStatuses = [
-  DealStatus.LEAD,
-  DealStatus.APPOINTMENT_SET,
-  DealStatus.SHOWING,
-  DealStatus.OFFER_WRITTEN,
-  DealStatus.UNDER_CONTRACT,
-  DealStatus.CLOSED,
-  DealStatus.DEAD
-];
-
-const SellerStatuses = [
-  DealStatus.LEAD,
-  DealStatus.LISTING_APPOINTMENT,
-  DealStatus.ACTIVE_LISTING,
-  DealStatus.PENDING,
-  DealStatus.CLOSED,
-  DealStatus.DEAD
-];
-
-const LEAD_SOURCES = [
-  "SOI", "FSBO", "Expired", "Open House", "Farming", "Sign Calls", "Ad Calls", 
-  "Internal Referral", "Referral", "Referral to Other Agent", "Direct Mail", 
-  "Social Media", "Agent Referral", "Zillow", "Zillow Flex", "Zillow NLL", 
-  "Zillow Preferred", "UpNest", "Homelight", "OpCity", "OpCity MVIP", 
-  "Realtor.com", "FollowUpBoss", "Agent Website", "Relocation Company", "Other"
-];
 
 export const Deals = () => {
-  const { deals, addDeal, updateDeal, deleteDeal, getDealNetCommission, getDealExpenses, deleteExpense, updateExpense, expenses, settings } = useApp();
+  const { deals, addDeal, updateDeal, deleteDeal, getDealNetCommission, getDealExpenses, deleteExpense } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>('All');
+  
+  // Filters
+  const [filterStage, setFilterStage] = useState<string>('All');
+  const [filterSource, setFilterSource] = useState<string>('All');
   
   // Delete Modal State
   const [dealToDelete, setDealToDelete] = useState<Deal | null>(null);
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
 
-  // Expense Edit State (Nested in Deal Modal)
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-
   // Form State
-  const initialFormState: Omit<Deal, 'id' | 'createdAt'> = {
+  const initialFormState: Partial<Deal> = {
     name: '',
-    type: DealType.BUYER,
-    status: DealStatus.LEAD,
-    grossCommission: 0,
-    closeDate: null,
-    notes: '',
+    dealSide: 'BUYER',
+    stage: DealStage.LEAD,
+    stageEnteredAt: new Date().toISOString(),
+    expectedGci: 0,
+    actualGci: 0,
+    closeProbabilityBps: 1000,
     leadSource: '',
-    leadSourceDetail: '',
+    otherLeadSource: '',
+    notes: '',
     // Seller Fields
-    listPrice: 0,
-    commissionPercentage: 0,
+    listPrice: null,
+    commissionRatePct: null,
+    expectedCommission: null,
     listingDate: null,
-    underContractDate: null,
-    closedSalePrice: 0,
+    closedPrice: null,
+    daysOnMarket: null,
+    priceVariance: null
   };
   const [formData, setFormData] = useState(initialFormState);
 
-  // Update Status options when Type changes
+  // Auto-calc Seller Commission
   useEffect(() => {
-    // Reset status if it's invalid for the new type
-    if (formData.type === DealType.BUYER && !BuyerStatuses.includes(formData.status)) {
-        setFormData(prev => ({ ...prev, status: DealStatus.LEAD }));
-    } else if (formData.type === DealType.SELLER && !SellerStatuses.includes(formData.status)) {
-        setFormData(prev => ({ ...prev, status: DealStatus.LEAD }));
-    }
-  }, [formData.type]);
+      if (formData.dealSide === 'SELLER' && formData.listPrice && formData.commissionRatePct) {
+          const comm = formData.listPrice * (formData.commissionRatePct / 100);
+          setFormData(prev => ({
+              ...prev,
+              expectedCommission: comm,
+              expectedGci: Math.round(comm) // Sync to main GCI field
+          }));
+      }
+  }, [formData.listPrice, formData.commissionRatePct, formData.dealSide]);
 
   const handleOpenModal = (deal?: Deal) => {
     if (deal) {
@@ -115,47 +78,64 @@ export const Deals = () => {
     setIsModalOpen(true);
   };
 
+  const handleStageChange = (newStage: DealStage) => {
+      const updates: any = {
+          stage: newStage,
+          closeProbabilityBps: getAutoProbability(newStage)
+      };
+
+      // Rule: Set Listing Date if entering Active
+      if (newStage === DealStage.SHOWING_OR_ACTIVE && !formData.listingDate && formData.dealSide === 'SELLER') {
+          updates.listingDate = new Date().toISOString();
+      }
+
+      // Rule: Calculations on Close
+      if (newStage === DealStage.CLOSED && formData.dealSide === 'SELLER') {
+          if (formData.listingDate) {
+              const start = new Date(formData.listingDate).getTime();
+              const end = new Date().getTime();
+              const diffTime = Math.abs(end - start);
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              updates.daysOnMarket = diffDays;
+          }
+          if (formData.closedPrice && formData.listPrice) {
+              updates.priceVariance = formData.closedPrice - formData.listPrice;
+          }
+      }
+
+      setFormData(prev => ({ ...prev, ...updates }));
+  };
+
   const handleSave = () => {
-    // Core Validation
-    if (!formData.name) return alert('Deal Name / Address is required');
-    if (!formData.leadSource) return alert('Lead Source is required');
+    if (!formData.name) return alert('Deal Name is required');
     
-    // Seller Validation
-    if (formData.type === DealType.SELLER) {
-        if (formData.status === DealStatus.ACTIVE_LISTING) {
-            if (!formData.listPrice || !formData.listingDate) {
-                return alert('Active Listings require a List Price and Listing Date.');
-            }
-        }
-        if (formData.status === DealStatus.PENDING) {
-             if (!formData.underContractDate) {
-                return alert('Pending deals require an Under Contract Date to calculate DOM.');
-             }
-             // Implicitly requires listing date too if we want DOM, but we check specific required transition fields
-             if (!formData.listingDate) {
-                 return alert('Missing Listing Date. Please enter when this property was listed.');
-             }
+    // Validation
+    if (formData.dealSide === 'SELLER' && formData.stage === DealStage.CLOSED) {
+        if (!formData.listPrice || !formData.commissionRatePct) {
+            return alert('Closed seller deals require List Price and Commission Rate.');
         }
     }
 
-    // Closed Validation (Both)
-    if (formData.status === DealStatus.CLOSED) {
-        if (!formData.grossCommission || !formData.closeDate) {
-            return alert('Closed deals require Commission Amount and Close Date');
-        }
-        if (formData.type === DealType.SELLER && !formData.closedSalePrice) {
-            return alert('Closed Seller deals require a Closed Sale Price.');
-        }
+    if (formData.stage === DealStage.CLOSED && !formData.closedAt) {
+        formData.closedAt = new Date().toISOString();
+    }
+    
+    // Clean up 'Other' source if not selected
+    if (formData.leadSource !== 'Other') {
+        formData.otherLeadSource = undefined;
     }
 
+    // Convert Partial<Deal> to Deal (casting for ID/created which we handle)
+    const payload = { ...formData };
+    
     if (selectedDeal) {
-      updateDeal({ ...selectedDeal, ...formData });
+      updateDeal({ ...selectedDeal, ...payload } as Deal);
     } else {
       addDeal({
-        ...formData,
+        ...payload,
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
-      });
+      } as Deal);
     }
     setIsModalOpen(false);
   };
@@ -167,50 +147,26 @@ export const Deals = () => {
 
   const confirmDelete = () => {
     if (!dealToDelete) return;
-
-    if (dealToDelete.status === DealStatus.CLOSED) {
-        if (deleteConfirmationInput !== 'DELETE') {
-            return; // Prevent delete if text doesn't match
-        }
-    }
+    if (dealToDelete.stage === DealStage.CLOSED && deleteConfirmationInput !== 'DELETE') return;
 
     deleteDeal(dealToDelete.id);
     setDealToDelete(null);
-    setIsModalOpen(false); // Close main modal if deleting from there
-  };
-
-  // ROI Calculator
-  const getDealROI = (deal: Deal) => {
-      const net = getDealNetCommission(deal);
-      const totalExp = deal.grossCommission - net;
-      if (totalExp === 0) return null;
-      return (net / totalExp) * 100;
-  };
-
-  // Expense Handling inside Deal Modal
-  const handleEditExpense = (expense: Expense) => {
-      setEditingExpense({...expense});
-      setIsExpenseModalOpen(true);
-  };
-
-  const handleExpenseSave = (updatedExpense: Expense) => {
-    updateExpense(updatedExpense);
-    setIsExpenseModalOpen(false);
-    setEditingExpense(null);
+    setIsModalOpen(false);
   };
 
   const handleDeleteExpense = (id: string) => {
-      if (window.confirm("This will remove this expense and update deal totals.")) {
-          deleteExpense(id);
-      }
+      if (window.confirm("Remove expense?")) deleteExpense(id);
   };
 
-  const filteredDeals = deals.filter(d => filterStatus === 'All' || d.status === filterStatus);
-  const activeStatuses = formData.type === DealType.BUYER ? BuyerStatuses : SellerStatuses;
-
-  // Stats for the header
-  const activeDeals = deals.filter(d => d.status !== DealStatus.CLOSED && d.status !== DealStatus.DEAD).length;
-  const closedDeals = deals.filter(d => d.status === DealStatus.CLOSED).length;
+  // Filter Logic
+  const filteredDeals = deals.filter(d => {
+      const matchStage = filterStage === 'All' || d.stage === filterStage;
+      const matchSource = filterSource === 'All' || d.leadSource === filterSource;
+      return matchStage && matchSource;
+  });
+  
+  const activeDeals = deals.filter(d => d.stage !== DealStage.CLOSED).length;
+  const closedDeals = deals.filter(d => d.stage === DealStage.CLOSED).length;
 
   return (
     <div className="space-y-6">
@@ -237,20 +193,45 @@ export const Deals = () => {
       </header>
 
       {/* Filter Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
-        {['All', ...new Set([...BuyerStatuses, ...SellerStatuses])].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
-            className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-sm border whitespace-nowrap transition-colors ${
-              filterStatus === status
-                ? 'bg-navy dark:bg-white/10 text-white border-navy dark:border-white/10'
-                : 'bg-white dark:bg-dark-surface text-slate-500 dark:text-dark-text-secondary border-slate-200 dark:border-dark-border hover:border-slate-300 dark:hover:border-white/20 hover:text-navy dark:hover:text-white'
-            }`}
-          >
-            {status}
-          </button>
-        ))}
+      <div className="space-y-4">
+          {/* Stage Filters */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            <button
+                onClick={() => setFilterStage('All')}
+                className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-sm border whitespace-nowrap transition-colors ${
+                filterStage === 'All'
+                    ? 'bg-navy dark:bg-white/10 text-white border-navy dark:border-white/10'
+                    : 'bg-white dark:bg-dark-surface text-slate-500 dark:text-dark-text-secondary border-slate-200 dark:border-dark-border hover:border-slate-300 dark:hover:border-white/20'
+                }`}
+            >
+                All Stages
+            </button>
+            {DEAL_STAGES.map((stage) => (
+            <button
+                key={stage.value}
+                onClick={() => setFilterStage(stage.value)}
+                className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-sm border whitespace-nowrap transition-colors ${
+                filterStage === stage.value
+                    ? 'bg-navy dark:bg-white/10 text-white border-navy dark:border-white/10'
+                    : 'bg-white dark:bg-dark-surface text-slate-500 dark:text-dark-text-secondary border-slate-200 dark:border-dark-border hover:border-slate-300 dark:hover:border-white/20'
+                }`}
+            >
+                {stage.label}
+            </button>
+            ))}
+          </div>
+          
+          {/* Source Filter */}
+          <div className="w-full md:w-64">
+             <select
+                 value={filterSource}
+                 onChange={(e) => setFilterSource(e.target.value)}
+                 className="w-full text-xs font-semibold uppercase tracking-wider bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border px-3 py-2 rounded-sm text-slate-500 dark:text-dark-text-secondary focus:outline-none"
+             >
+                 <option value="All">All Sources</option>
+                 {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+          </div>
       </div>
 
       {/* List */}
@@ -264,20 +245,17 @@ export const Deals = () => {
             <thead className="bg-slate-50 dark:bg-white/5 border-b border-slate-200 dark:border-dark-border text-xs uppercase text-slate-400 dark:text-dark-text-muted font-bold tracking-wider font-sans">
               <tr>
                 <th className="px-6 py-4">Property / Name</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Gross Comm.</th>
-                <th className="px-6 py-4 text-right">Expenses</th>
+                <th className="px-6 py-4">Stage</th>
+                <th className="px-6 py-4 text-right">Exp. GCI</th>
+                <th className="px-6 py-4 text-right">Act. GCI</th>
                 <th className="px-6 py-4 text-right">Net Comm.</th>
-                <th className="px-6 py-4 text-right">ROI %</th>
-                <th className="px-6 py-4 text-right">Close Date</th>
+                <th className="px-6 py-4 text-right">Prob %</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
               {filteredDeals.map((deal) => {
                  const net = getDealNetCommission(deal);
-                 const totalExp = deal.grossCommission - net;
-                 const showNet = deal.grossCommission > 0 || totalExp > 0 || deal.status === DealStatus.CLOSED;
-                 const roi = getDealROI(deal);
+                 const stageLabel = DEAL_STAGES.find(s => s.value === deal.stage)?.label || deal.stage;
 
                  return (
                 <tr 
@@ -288,33 +266,30 @@ export const Deals = () => {
                   <td className="px-6 py-4">
                     <div className="font-semibold text-navy dark:text-dark-text-primary font-sans">{deal.name}</div>
                     <div className="text-xs text-slate-500 dark:text-dark-text-muted mt-1 inline-flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${deal.type === DealType.BUYER ? 'bg-navy dark:bg-white' : 'bg-gold'}`}></span>
-                        <span className="uppercase tracking-wide text-[10px] font-medium">{deal.type}</span>
+                        <span className={`w-1.5 h-1.5 rounded-full ${deal.dealSide === 'BUYER' ? 'bg-navy dark:bg-white' : 'bg-gold'}`}></span>
+                        <span className="uppercase tracking-wide text-[10px] font-medium">{deal.dealSide}</span>
+                        <span className="text-[10px] text-slate-400">• {deal.leadSource || 'No Source'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider border
-                      ${deal.status === DealStatus.CLOSED ? 'bg-slate-100 dark:bg-white/10 text-navy dark:text-white border-slate-200 dark:border-white/10' : 
-                        deal.status === DealStatus.DEAD ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-100 dark:border-red-900/30' : 
-                        deal.status === DealStatus.ACTIVE_LISTING ? 'bg-white dark:bg-dark-surface text-gold-600 dark:text-gold border-gold-muted dark:border-gold/30' :
+                      ${deal.stage === DealStage.CLOSED ? 'bg-slate-100 dark:bg-white/10 text-navy dark:text-white border-slate-200 dark:border-white/10' : 
+                        deal.stage === DealStage.LEAD ? 'bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/20' :
                         'bg-white dark:bg-dark-surface text-slate-500 dark:text-dark-text-secondary border-slate-200 dark:border-dark-border'}`}>
-                      {deal.status}
+                      {stageLabel}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right font-medium text-navy dark:text-dark-text-primary">
-                    {deal.grossCommission > 0 ? `$${deal.grossCommission.toLocaleString()}` : '-'}
+                  <td className="px-6 py-4 text-right text-slate-500 dark:text-dark-text-secondary">
+                    ${(deal.expectedGci || 0).toLocaleString()}
                   </td>
-                  <td className="px-6 py-4 text-right text-slate-400 dark:text-dark-text-muted">
-                    {totalExp > 0 ? `($${totalExp.toLocaleString()})` : '-'}
+                  <td className="px-6 py-4 text-right font-medium text-navy dark:text-dark-text-primary">
+                    {deal.actualGci ? `$${deal.actualGci.toLocaleString()}` : '-'}
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-navy dark:text-dark-text-primary font-serif">
-                     {showNet ? `$${net.toLocaleString()}` : <span className="text-slate-300 dark:text-white/20 font-sans">-</span>}
+                     ${net.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-right text-slate-500 dark:text-dark-text-secondary">
-                     {roi !== null ? `${roi.toFixed(1)}%` : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-right text-slate-500 dark:text-dark-text-secondary">
-                    {deal.closeDate || '-'}
+                     {(deal.closeProbabilityBps / 100).toFixed(0)}%
                   </td>
                 </tr>
               )})}
@@ -328,194 +303,177 @@ export const Deals = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/20 dark:bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white dark:bg-dark-surface w-full max-w-2xl rounded-sm shadow-2xl overflow-hidden animate-fade-in-up border border-slate-200 dark:border-dark-border my-8">
             <div className="flex justify-between items-center px-8 py-6 border-b border-slate-100 dark:border-dark-border sticky top-0 bg-white dark:bg-dark-surface z-10">
-              <h3 className="text-lg font-bold text-navy dark:text-dark-text-primary font-serif">{selectedDeal ? 'Edit Deal' : 'New Deal'}</h3>
+              <h3 className="text-lg font-bold text-navy dark:text-dark-text-primary font-serif">
+                {selectedDeal ? 'Edit Deal' : 'New Deal'}
+              </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 dark:text-dark-text-muted hover:text-navy dark:hover:text-white transition-colors"><X size={20} /></button>
             </div>
             
             <div className="p-8 pb-32 space-y-8">
               
-              {/* Basic Info */}
               <div className="grid grid-cols-2 gap-6">
+                
+                {/* Deal Side */}
+                <div className="col-span-2 md:col-span-1">
+                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Deal Side</label>
+                    <select
+                        value={formData.dealSide}
+                        onChange={(e) => setFormData({...formData, dealSide: e.target.value as DealSide})}
+                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
+                    >
+                        <option value="BUYER">BUYER</option>
+                        <option value="SELLER">SELLER</option>
+                    </select>
+                </div>
+
+                {/* Stage */}
+                <div className="col-span-2 md:col-span-1">
+                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Stage</label>
+                    <select
+                        value={formData.stage}
+                        onChange={(e) => handleStageChange(e.target.value as DealStage)}
+                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
+                    >
+                        {DEAL_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                </div>
+
+                {/* Name / Address */}
                 <div className="col-span-2">
-                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Deal Name / Address</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
+                        {formData.dealSide === 'SELLER' ? 'Property Address' : 'Client Name / Search Area'}
+                    </label>
                     <input
                         type="text"
-                        value={formData.name}
+                        value={formData.name || ''}
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
                         className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
-                        placeholder="e.g. 123 Maple Avenue"
+                        placeholder={formData.dealSide === 'SELLER' ? "e.g. 123 Maple Avenue" : "e.g. John Smith / Downtown"}
                     />
                 </div>
-
-                <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Deal Type</label>
+                
+                {/* Lead Source */}
+                <div className="col-span-2 md:col-span-1">
+                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Lead Source</label>
                     <select
-                        value={formData.type}
-                        onChange={(e) => setFormData({...formData, type: e.target.value as DealType})}
-                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
-                    >
-                        {Object.values(DealType).map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Status</label>
-                    <select
-                        value={formData.status}
-                        onChange={(e) => setFormData({...formData, status: e.target.value as DealStatus})}
-                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
-                    >
-                        {activeStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                </div>
-
-                <div className="col-span-2">
-                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Lead Source <span className="text-gold">*</span></label>
-                    <select
-                        value={formData.leadSource}
+                        value={formData.leadSource || ''}
                         onChange={(e) => setFormData({...formData, leadSource: e.target.value})}
-                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
+                         className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
                     >
-                        <option value="">-- Select Source --</option>
-                        {LEAD_SOURCES.map(source => <option key={source} value={source}>{source}</option>)}
+                        <option value="" disabled>Select Source</option>
+                        {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                 </div>
 
+                {/* Other Source Input */}
                 {formData.leadSource === 'Other' && (
-                     <div className="col-span-2 animate-fade-in-up">
-                        <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Specify Lead Source</label>
+                    <div className="col-span-2 md:col-span-1">
+                        <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Specify Source</label>
                         <input
                             type="text"
-                            value={formData.leadSourceDetail || ''}
-                            onChange={(e) => setFormData({...formData, leadSourceDetail: e.target.value})}
+                            value={formData.otherLeadSource || ''}
+                            onChange={(e) => setFormData({...formData, otherLeadSource: e.target.value})}
                             className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
-                            placeholder="e.g. Builder referral, local event, past client"
-                        />
-                    </div>
-                )}
-              </div>
-
-              {/* Seller Specific Fields */}
-              {formData.type === DealType.SELLER && (
-                <div className="bg-slate-50 dark:bg-white/5 p-6 border border-slate-200 dark:border-dark-border rounded-sm">
-                    <h4 className="text-sm font-bold text-navy dark:text-dark-text-primary mb-4 flex items-center gap-2 font-serif">
-                        <div className="w-1.5 h-1.5 bg-gold rounded-full"></div>
-                        Listing Details
-                    </h4>
-                    <div className="grid grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
-                                List Price {formData.status === DealStatus.ACTIVE_LISTING && <span className="text-gold">*</span>}
-                            </label>
-                            <input
-                                type="number"
-                                value={formData.listPrice || ''}
-                                onChange={(e) => {
-                                    const price = parseFloat(e.target.value) || 0;
-                                    const pct = formData.commissionPercentage || 0;
-                                    const gross = price * (pct / 100);
-                                    setFormData({...formData, listPrice: price, grossCommission: gross});
-                                }}
-                                className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary focus:outline-none focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                                placeholder="$"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
-                                Commission %
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    value={formData.commissionPercentage || ''}
-                                    onChange={(e) => {
-                                        const pct = parseFloat(e.target.value) || 0;
-                                        const price = formData.listPrice || 0;
-                                        const gross = price * (pct / 100);
-                                        setFormData({...formData, commissionPercentage: pct, grossCommission: gross});
-                                    }}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary focus:outline-none focus:border-gold rounded-sm bg-white dark:bg-dark-surface pr-8"
-                                    placeholder="%"
-                                />
-                                <span className="absolute right-3 top-2 text-slate-400 dark:text-dark-text-muted text-sm">%</span>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
-                                Listing Date {formData.status === DealStatus.ACTIVE_LISTING && <span className="text-gold">*</span>}
-                            </label>
-                            <input
-                                type="date"
-                                value={formData.listingDate || ''}
-                                onChange={(e) => setFormData({...formData, listingDate: e.target.value})}
-                                className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary focus:outline-none focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
-                                Under Contract Date {formData.status === DealStatus.PENDING && <span className="text-gold">*</span>}
-                            </label>
-                            <input
-                                type="date"
-                                value={formData.underContractDate || ''}
-                                onChange={(e) => setFormData({...formData, underContractDate: e.target.value})}
-                                className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary focus:outline-none focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                            />
-                        </div>
-                         {/* Read-only Metrics */}
-                         <div className="flex flex-col justify-end col-span-2">
-                            <div className="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border px-4 py-3 text-sm rounded-sm">
-                                <span className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Days on Market</span>
-                                <span className="font-mono font-bold text-navy dark:text-dark-text-primary text-lg mt-1 font-serif">
-                                    {calculateDOM(formData) !== null ? `${calculateDOM(formData)} Days` : 'N/A'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-              )}
-
-              {/* Financials & Closing */}
-              <div className="grid grid-cols-2 gap-6 pt-2 border-t border-slate-100 dark:border-dark-border">
-                <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
-                        Gross Commission ($) {formData.status === DealStatus.CLOSED && <span className="text-gold">*</span>}
-                    </label>
-                    <input
-                        type="number"
-                        value={formData.grossCommission}
-                        onChange={(e) => setFormData({...formData, grossCommission: parseFloat(e.target.value) || 0})}
-                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
-                        Close Date {formData.status === DealStatus.CLOSED && <span className="text-gold">*</span>}
-                    </label>
-                    <input
-                        type="date"
-                        value={formData.closeDate || ''}
-                        onChange={(e) => setFormData({...formData, closeDate: e.target.value})}
-                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                    />
-                </div>
-
-                {formData.type === DealType.SELLER && (
-                     <div>
-                        <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
-                            Closed Sale Price {formData.status === DealStatus.CLOSED && <span className="text-gold">*</span>}
-                        </label>
-                        <input
-                            type="number"
-                            value={formData.closedSalePrice || ''}
-                            onChange={(e) => setFormData({...formData, closedSalePrice: parseFloat(e.target.value) || 0})}
-                            className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
                         />
                     </div>
                 )}
                 
+                {/* Probability Display */}
+                <div className="col-span-2 md:col-span-1 flex items-end">
+                     <div className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-dark-border px-4 py-2.5 rounded-sm flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider">Probability</span>
+                        <span className="font-bold text-navy dark:text-white font-mono">{(formData.closeProbabilityBps! / 100).toFixed(0)}%</span>
+                     </div>
+                </div>
+
+                {/* --- SELLER SPECIFIC FIELDS --- */}
+                {formData.dealSide === 'SELLER' ? (
+                    <div className="col-span-2 bg-slate-50 dark:bg-white/5 p-4 rounded-sm border border-slate-100 dark:border-dark-border space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Calculator size={14} className="text-gold" />
+                            <span className="text-xs font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider">Listing Agreement Details</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">List Price ($)</label>
+                                <input 
+                                    type="number" 
+                                    value={formData.listPrice || ''}
+                                    onChange={(e) => setFormData({...formData, listPrice: parseFloat(e.target.value) || 0})}
+                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">Comm. Rate (%)</label>
+                                <input 
+                                    type="number" 
+                                    value={formData.commissionRatePct || ''}
+                                    onChange={(e) => setFormData({...formData, commissionRatePct: parseFloat(e.target.value) || 0})}
+                                    placeholder="3.0"
+                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
+                                />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">Calculated Expected Commission</label>
+                                <div className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary bg-slate-100 dark:bg-white/10 rounded-sm font-bold font-mono">
+                                    ${(formData.expectedCommission || 0).toLocaleString()}
+                                </div>
+                            </div>
+                             {/* Listing Date */}
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">Listing Date</label>
+                                <input 
+                                    type="date"
+                                    value={formData.listingDate ? formData.listingDate.split('T')[0] : ''}
+                                    onChange={(e) => setFormData({...formData, listingDate: new Date(e.target.value).toISOString()})}
+                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
+                                />
+                            </div>
+                            {/* Closed Price (Conditional) */}
+                            {['UNDER_CONTRACT', 'PENDING_CLOSE', 'CLOSED'].includes(formData.stage!) && (
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">Closed/Sale Price ($)</label>
+                                    <input 
+                                        type="number" 
+                                        value={formData.closedPrice || ''}
+                                        onChange={(e) => setFormData({...formData, closedPrice: parseFloat(e.target.value) || 0})}
+                                        className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    // BUYER SIMPLE FIELDS
+                    <div className="col-span-2 bg-slate-50 dark:bg-white/5 p-4 rounded-sm border border-slate-100 dark:border-dark-border">
+                         <div className="flex items-center gap-2 mb-2">
+                            <Calculator size={14} className="text-gold" />
+                            <span className="text-xs font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider">Estimated Value</span>
+                        </div>
+                         <div>
+                            <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">Expected GCI ($)</label>
+                            <input
+                                type="number"
+                                value={formData.expectedGci || ''}
+                                onChange={(e) => setFormData({...formData, expectedGci: parseFloat(e.target.value) || 0})}
+                                className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface font-bold"
+                            />
+                        </div>
+                    </div>
+                )}
+
+                 <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Actual GCI (Closed)</label>
+                    <input
+                        type="number"
+                        value={formData.actualGci || 0}
+                        onChange={(e) => setFormData({...formData, actualGci: parseFloat(e.target.value) || 0})}
+                         className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface transition-colors"
+                         disabled={formData.stage !== DealStage.CLOSED}
+                    />
+                </div>
+
                 <div className="col-span-2">
                     <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Notes</label>
                     <textarea
@@ -525,37 +483,6 @@ export const Deals = () => {
                     />
                 </div>
               </div>
-
-              {/* Financial Summary */}
-              {selectedDeal && (
-                 <div className="bg-slate-50 dark:bg-white/5 p-6 border border-slate-200 dark:border-dark-border mt-4 rounded-sm">
-                    <h4 className="text-sm font-bold text-navy dark:text-dark-text-primary mb-4 font-serif">Deal Performance (Read-Only)</h4>
-                    <div className="grid grid-cols-4 gap-4 text-sm">
-                        <div>
-                            <span className="block text-slate-400 dark:text-dark-text-muted text-[10px] uppercase tracking-wider font-bold">Gross</span>
-                            <span className="font-mono font-medium text-navy dark:text-dark-text-primary mt-1 block font-serif">${formData.grossCommission.toLocaleString()}</span>
-                        </div>
-                        <div>
-                            <span className="block text-slate-400 dark:text-dark-text-muted text-[10px] uppercase tracking-wider font-bold">Net Income</span>
-                            <span className="font-mono font-bold text-navy dark:text-dark-text-primary mt-1 block font-serif">${getDealNetCommission(selectedDeal).toLocaleString()}</span>
-                        </div>
-                        <div>
-                             <span className="block text-slate-400 dark:text-dark-text-muted text-[10px] uppercase tracking-wider font-bold">ROI %</span>
-                             <span className="font-mono font-bold text-navy dark:text-dark-text-primary mt-1 block font-serif">
-                                 {getDealROI(selectedDeal) !== null ? `${getDealROI(selectedDeal)?.toFixed(1)}%` : '—'}
-                             </span>
-                        </div>
-                         {formData.type === DealType.SELLER && calculateSaleToListRatio(formData) && (
-                             <div>
-                                <span className="block text-slate-400 dark:text-dark-text-muted text-[10px] uppercase tracking-wider font-bold">Sale-to-List</span>
-                                <span className="font-mono font-bold text-navy dark:text-dark-text-primary mt-1 block font-serif">
-                                    {calculateSaleToListRatio(formData)?.toFixed(1)}%
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                 </div>
-              )}
 
               {/* Linked Expenses Section */}
               {selectedDeal && (
@@ -579,9 +506,6 @@ export const Deals = () => {
                                   <div className="flex items-center gap-4">
                                       <span className="font-mono font-bold text-navy dark:text-dark-text-primary text-sm">${exp.totalCost.toFixed(2)}</span>
                                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => handleEditExpense(exp)} className="text-slate-400 hover:text-navy dark:hover:text-white transition-colors">
-                                            <Edit2 size={14} />
-                                        </button>
                                         <button onClick={() => handleDeleteExpense(exp.id)} className="text-slate-400 hover:text-red-500 transition-colors">
                                             <Trash2 size={14} />
                                         </button>
@@ -619,85 +543,6 @@ export const Deals = () => {
         </div>
       )}
 
-      {/* Nested Expense Edit Modal */}
-      {isExpenseModalOpen && editingExpense && (
-         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-navy/20 dark:bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-dark-surface w-full max-w-lg rounded-sm shadow-2xl overflow-hidden animate-fade-in-up border border-slate-200 dark:border-dark-border">
-                <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-dark-border">
-                    <h3 className="text-md font-bold text-navy dark:text-dark-text-primary font-serif">Edit Linked Expense</h3>
-                </div>
-                <div className="p-6 space-y-4">
-                     {/* Simplified form re-using state logic logic would be better but direct manipulation is okay for now */}
-                     <div className="grid grid-cols-2 gap-4">
-                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Date</label>
-                            <input type="date" value={editingExpense.date} onChange={e => setEditingExpense({...editingExpense, date: e.target.value})} className="w-full border p-2 rounded-sm text-sm bg-white dark:bg-dark-surface dark:border-dark-border dark:text-white"/>
-                         </div>
-                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Category</label>
-                            <select value={editingExpense.category} onChange={e => setEditingExpense({...editingExpense, category: e.target.value as ExpenseCategory})} className="w-full border p-2 rounded-sm text-sm bg-white dark:bg-dark-surface dark:border-dark-border dark:text-white" disabled={editingExpense.type === ExpenseType.MILEAGE}>
-                                {Object.values(ExpenseCategory).map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                         </div>
-                         {editingExpense.type === ExpenseType.MILEAGE ? (
-                             <>
-                                <div className="col-span-2">
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Miles Driven</label>
-                                    <input 
-                                        type="number" 
-                                        value={editingExpense.milesDriven} 
-                                        onChange={e => {
-                                            const miles = parseFloat(e.target.value) || 0;
-                                            const gallons = miles / editingExpense.mpg;
-                                            const cost = gallons * editingExpense.gasPrice;
-                                            setEditingExpense({...editingExpense, milesDriven: miles, gallonsUsed: gallons, fuelCost: cost, totalCost: cost});
-                                        }}
-                                        className="w-full border p-2 rounded-sm text-sm bg-white dark:bg-dark-surface dark:border-dark-border dark:text-white"
-                                    />
-                                </div>
-                             </>
-                         ) : (
-                             <>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Quantity</label>
-                                    <input 
-                                        type="number" 
-                                        value={editingExpense.quantity} 
-                                        onChange={e => {
-                                            const qty = parseFloat(e.target.value) || 0;
-                                            setEditingExpense({...editingExpense, quantity: qty, totalCost: qty * editingExpense.costPerUnit});
-                                        }}
-                                        className="w-full border p-2 rounded-sm text-sm bg-white dark:bg-dark-surface dark:border-dark-border dark:text-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Cost Per Unit</label>
-                                    <input 
-                                        type="number" 
-                                        value={editingExpense.costPerUnit} 
-                                        onChange={e => {
-                                            const cost = parseFloat(e.target.value) || 0;
-                                            setEditingExpense({...editingExpense, costPerUnit: cost, totalCost: editingExpense.quantity * cost});
-                                        }}
-                                        className="w-full border p-2 rounded-sm text-sm bg-white dark:bg-dark-surface dark:border-dark-border dark:text-white"
-                                    />
-                                </div>
-                             </>
-                         )}
-                         <div className="col-span-2">
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notes</label>
-                            <input type="text" value={editingExpense.notes || ''} onChange={e => setEditingExpense({...editingExpense, notes: e.target.value})} className="w-full border p-2 rounded-sm text-sm bg-white dark:bg-dark-surface dark:border-dark-border dark:text-white"/>
-                         </div>
-                     </div>
-                </div>
-                <div className="px-6 py-4 bg-slate-50 dark:bg-white/5 flex justify-end gap-2">
-                     <button onClick={() => setIsExpenseModalOpen(false)} className="px-4 py-2 text-xs font-bold uppercase text-slate-500">Cancel</button>
-                     <button onClick={() => handleExpenseSave(editingExpense)} className="px-4 py-2 text-xs font-bold uppercase bg-navy text-white rounded-sm">Save Changes</button>
-                </div>
-            </div>
-         </div>
-      )}
-
       {/* Delete Confirmation Modal */}
       {dealToDelete && (
          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-navy/40 dark:bg-black/70 backdrop-blur-sm p-4">
@@ -714,7 +559,7 @@ export const Deals = () => {
                         This action cannot be undone.
                     </p>
 
-                    {dealToDelete.status === DealStatus.CLOSED && (
+                    {dealToDelete.stage === DealStage.CLOSED && (
                         <div className="mb-6">
                             <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">
                                 To confirm, type "DELETE"
@@ -738,9 +583,9 @@ export const Deals = () => {
                         </button>
                         <button 
                             onClick={confirmDelete}
-                            disabled={dealToDelete.status === DealStatus.CLOSED && deleteConfirmationInput !== 'DELETE'}
+                            disabled={dealToDelete.stage === DealStage.CLOSED && deleteConfirmationInput !== 'DELETE'}
                             className={`px-5 py-2 text-sm font-medium text-white rounded-sm shadow-sm transition-colors
-                                ${dealToDelete.status === DealStatus.CLOSED && deleteConfirmationInput !== 'DELETE' 
+                                ${dealToDelete.stage === DealStage.CLOSED && deleteConfirmationInput !== 'DELETE' 
                                     ? 'bg-red-300 dark:bg-red-900/50 cursor-not-allowed' 
                                     : 'bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500'}`}
                         >

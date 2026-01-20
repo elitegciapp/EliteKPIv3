@@ -1,27 +1,16 @@
-export enum DealStatus {
-  LEAD = 'Lead',
-  
-  // Buyer Pipeline
-  APPOINTMENT_SET = 'Appointment Set',
-  SHOWING = 'Showing',
-  OFFER_WRITTEN = 'Offer Written',
-  UNDER_CONTRACT = 'Under Contract',
-  
-  // Seller Pipeline
-  LISTING_APPOINTMENT = 'Listing Appointment',
-  ACTIVE_LISTING = 'Active Listing',
-  PENDING = 'Under Contract / Pending',
-  
-  // Common
-  CLOSED = 'Closed',
-  DEAD = 'Dead',
+
+export enum DealStage {
+  LEAD = 'LEAD',
+  INITIAL_CONTACT = 'INITIAL_CONTACT',
+  SHOWING_OR_ACTIVE = 'SHOWING_OR_ACTIVE',
+  UNDER_CONTRACT = 'UNDER_CONTRACT',
+  PENDING_CLOSE = 'PENDING_CLOSE',
+  CLOSED = 'CLOSED'
 }
 
-export enum DealType {
-  BUYER = 'Buyer',
-  SELLER = 'Seller',
-}
+export type DealSide = 'BUYER' | 'SELLER';
 
+// Expense/Activity enums remain the same for now
 export enum ExpenseType {
   STANDARD = 'Standard Expense',
   MILEAGE = 'Mileage (Fuel)',
@@ -56,43 +45,51 @@ export enum ActivityCategory {
 
 export interface Deal {
   id: string;
-  name: string; // Property Address
-  type: DealType;
-  status: DealStatus;
-  grossCommission: number; // Required for closed
-  closeDate: string | null; // ISO Date string, required for closed
-  leadSource?: string;
-  leadSourceDetail?: string; // Specifics if Lead Source is "Other"
-  notes?: string;
-  createdAt: string;
+  name: string;
+  dealSide: DealSide;
+  stage: DealStage;
+  
+  // Canonical Pipeline Fields
+  stageEnteredAt: string; // ISO string
+  closeProbabilityBps: number; // 0-10000 (Basis points)
+  
+  expectedGci: number;
+  actualGci?: number; // Only for CLOSED
+  
+  createdAt: string; // ISO string
+  closedAt?: string; // ISO string (only for CLOSED)
 
-  // Seller Specific
-  listPrice?: number;
-  commissionPercentage?: number; // Used to calc gross commission
-  listingDate?: string | null; // Required for Active Listing
-  underContractDate?: string | null; // Required for Pending
-  closedSalePrice?: number; // Required for Closed (Seller)
+  // Context
+  leadSource: string | null;
+  otherLeadSource?: string;
+  notes?: string;
+
+  // Seller-Specific Fields
+  listPrice?: number | null;
+  commissionRatePct?: number | null;
+  expectedCommission?: number | null;
+  listingDate?: string | null; // ISO
+  closedPrice?: number | null;
+  daysOnMarket?: number | null;
+  priceVariance?: number | null;
 }
 
 export interface Expense {
   id: string;
-  dealId?: string; // Optional link to deal
-  dealType?: DealType; // Auto-derived if linked
+  dealId?: string;
+  dealSide?: DealSide; // Updated from dealType
   type: ExpenseType;
   category: ExpenseCategory;
   date: string;
-  notes?: string; // Conditional: Marketing or Other only
+  notes?: string;
   
-  // Standard
   quantity: number;
   costPerUnit: number;
 
-  // Mileage
   milesDriven: number;
   mpg: number;
   gasPrice: number;
   
-  // Calculated (stored for ease, but derived in logic)
   gallonsUsed: number;
   fuelCost: number;
   totalCost: number;
@@ -102,38 +99,17 @@ export interface Activity {
   id: string;
   date: string;
   category: ActivityCategory;
-  dealId?: string; // Optional
-  dealType?: DealType; // Auto-derived if linked
-  notes?: string; // Optional
+  dealId?: string;
+  dealSide?: DealSide; // Updated from dealType
+  notes?: string;
 }
 
 export interface KPISettings {
-  // Annual Goals
   annualGCIGoal: number;
-  targetCloseRate: number; // Percentage 0-100
-
-  // Commission Assumptions
+  targetCloseRate: number;
   avgBuyerCommission: number;
   avgSellerCommission: number;
-
-  // Expense & Tax
-  estimatedTaxRate: number; // Percentage 0-100
-
-  // Mileage Defaults
+  estimatedTaxRate: number;
   defaultMPG: number;
   defaultGasPrice: number;
-}
-
-export interface DashboardMetrics {
-  gciYTD: number;
-  netIncomeYTD: number;
-  dealsClosedYTD: number;
-  avgCommission: number;
-  closeRate: number;
-  dealsClosedTotal: number;
-  totalDeals: number;
-  offersAccepted: number; // derived from Under Contract + Closed
-  offersWritten: number; // derived from status >= Offer Written
-  showings: number; // derived from status >= Showing
-  appointments: number; // derived from status >= Appointment Set
 }

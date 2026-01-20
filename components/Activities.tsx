@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../context';
-import { Activity, ActivityCategory, Deal } from '../types';
-import { Plus, Trash2, CalendarCheck, CheckSquare, AlertTriangle } from 'lucide-react';
+import { Activity, ActivityCategory } from '../types';
+import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 
 export const Activities = () => {
   const { activities, addActivity, deleteActivity, deals } = useApp();
@@ -23,7 +24,7 @@ export const Activities = () => {
     const newActivity: Activity = {
       ...formData,
       id: crypto.randomUUID(),
-      dealType: linkedDeal?.type // Derived from linked deal
+      dealSide: linkedDeal?.dealSide // Derived from linked deal
     };
 
     addActivity(newActivity);
@@ -144,7 +145,7 @@ export const Activities = () => {
                 >
                   <option value="">-- No Deal Linked --</option>
                   {deals.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.type})</option>
+                    <option key={d.id} value={d.id}>{d.name} ({d.dealSide})</option>
                   ))}
                 </select>
               </div>

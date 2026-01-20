@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Deal, Expense, Activity, KPISettings, DealStatus, ExpenseType } from './types';
+
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { Deal, Expense, Activity, KPISettings, DealStage } from './types';
 import { StorageService, defaultSettings } from './services/storage';
+import { APIService } from './services/api';
 
 interface AppContextType {
   deals: Deal[];
@@ -8,6 +10,7 @@ interface AppContextType {
   activities: Activity[];
   settings: KPISettings;
   theme: 'light' | 'dark';
+  isDemo: boolean;
   addDeal: (deal: Deal) => void;
   updateDeal: (deal: Deal) => void;
   deleteDeal: (id: string) => void;
@@ -20,6 +23,9 @@ interface AppContextType {
   setTheme: (theme: 'light' | 'dark') => void;
   getDealExpenses: (dealId: string) => Expense[];
   getDealNetCommission: (deal: Deal) => number;
+  loadDemoData: () => void;
+  clearData: () => void;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -30,14 +36,34 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [settings, setSettings] = useState<KPISettings>(defaultSettings);
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => StorageService.getTheme());
+  const [isDemo, setIsDemo] = useState(false);
 
+  // Core Data Fetcher
+  const refreshData = useCallback(async () => {
+    try {
+      const [fetchedDeals, fetchedExpenses, fetchedActivities, demoStatus] = await Promise.all([
+        APIService.getDeals(),
+        APIService.getExpenses(),
+        APIService.getActivities(),
+        APIService.isDemoMode()
+      ]);
+      
+      if (Array.isArray(fetchedDeals)) setDeals(fetchedDeals);
+      if (Array.isArray(fetchedExpenses)) setExpenses(fetchedExpenses);
+      if (Array.isArray(fetchedActivities)) setActivities(fetchedActivities);
+      setIsDemo(demoStatus);
+      
+    } catch (err) {
+      console.error("Data refresh error:", err);
+    }
+  }, []);
+
+  // Initialize data from API
   useEffect(() => {
-    setDeals(StorageService.getDeals());
-    setExpenses(StorageService.getExpenses());
-    setActivities(StorageService.getActivities());
-    setSettings(StorageService.getSettings());
+    refreshData();
     
-    // Initial Theme Application
+    // Load local settings
+    setSettings(StorageService.getSettings());
     const storedTheme = StorageService.getTheme();
     setThemeState(storedTheme);
     if (storedTheme === 'dark') {
@@ -45,21 +71,21 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, []);
+  }, [refreshData]);
 
   const saveDeals = (newDeals: Deal[]) => {
-    setDeals(newDeals);
-    StorageService.saveDeals(newDeals);
+    setDeals(newDeals); // Optimistic UI update
+    APIService.saveDeals(newDeals); // Server sync
   };
 
   const saveExpenses = (newExpenses: Expense[]) => {
     setExpenses(newExpenses);
-    StorageService.saveExpenses(newExpenses);
+    APIService.saveExpenses(newExpenses);
   };
 
   const saveActivities = (newActivities: Activity[]) => {
     setActivities(newActivities);
-    StorageService.saveActivities(newActivities);
+    APIService.saveActivities(newActivities);
   };
 
   const addDeal = (deal: Deal) => {
@@ -71,7 +97,6 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const deleteDeal = (id: string) => {
-    // Cascading delete: Remove all expenses and activities linked to this deal
     const updatedExpenses = expenses.filter(e => e.dealId !== id);
     const updatedActivities = activities.filter(a => a.dealId !== id);
     const updatedDeals = deals.filter(d => d.id !== id);
@@ -123,7 +148,28 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   const getDealNetCommission = (deal: Deal) => {
     const dealExpenses = getDealExpenses(deal.id);
     const totalExpenses = dealExpenses.reduce((sum, e) => sum + e.totalCost, 0);
-    return deal.grossCommission - totalExpenses;
+    // Use actualGci if closed, otherwise expectedGci
+    const revenue = deal.stage === DealStage.CLOSED ? (deal.actualGci || 0) : deal.expectedGci;
+    return revenue - totalExpenses;
+  };
+
+  // Server-Side Demo Toggles
+  const loadDemoData = async () => {
+    await APIService.enableDemoMode();
+    await refreshData();
+  };
+
+  const clearData = async () => {
+    if (isDemo) {
+      // If in demo mode, "Clearing" just means exiting demo mode
+      await APIService.disableDemoMode();
+    } else {
+      // If in production mode, actually clear the persistent storage
+      saveDeals([]);
+      saveExpenses([]);
+      saveActivities([]);
+    }
+    await refreshData();
   };
 
   return (
@@ -133,6 +179,7 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
       activities,
       settings,
       theme,
+      isDemo,
       addDeal,
       updateDeal,
       deleteDeal,
@@ -145,6 +192,9 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
       setTheme,
       getDealExpenses,
       getDealNetCommission,
+      loadDemoData,
+      clearData,
+      refreshData
     }}>
       {children}
     </AppContext.Provider>

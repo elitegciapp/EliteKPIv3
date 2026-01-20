@@ -18,35 +18,37 @@ export const defaultSettings: KPISettings = {
   defaultGasPrice: 3.50,
 };
 
+const safeParse = (key: string, fallback: any) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch (error) {
+    console.error(`Error parsing key ${key}:`, error);
+    return fallback;
+  }
+};
+
 export const StorageService = {
-  getDeals: (): Deal[] => {
-    const data = localStorage.getItem(KEYS.DEALS);
-    return data ? JSON.parse(data) : [];
-  },
+  getDeals: (): Deal[] => safeParse(KEYS.DEALS, []),
   saveDeals: (deals: Deal[]) => {
     localStorage.setItem(KEYS.DEALS, JSON.stringify(deals));
   },
-  getExpenses: (): Expense[] => {
-    const data = localStorage.getItem(KEYS.EXPENSES);
-    return data ? JSON.parse(data) : [];
-  },
+  
+  getExpenses: (): Expense[] => safeParse(KEYS.EXPENSES, []),
   saveExpenses: (expenses: Expense[]) => {
     localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
   },
-  getActivities: (): Activity[] => {
-    const data = localStorage.getItem(KEYS.ACTIVITIES);
-    return data ? JSON.parse(data) : [];
-  },
+  
+  getActivities: (): Activity[] => safeParse(KEYS.ACTIVITIES, []),
   saveActivities: (activities: Activity[]) => {
     localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify(activities));
   },
-  getSettings: (): KPISettings => {
-    const data = localStorage.getItem(KEYS.SETTINGS);
-    return data ? JSON.parse(data) : defaultSettings;
-  },
+  
+  getSettings: (): KPISettings => safeParse(KEYS.SETTINGS, defaultSettings),
   saveSettings: (settings: KPISettings) => {
     localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
   },
+  
   getTheme: (): 'light' | 'dark' => {
     const data = localStorage.getItem(KEYS.THEME);
     return (data === 'dark' || data === 'light') ? data : 'light';

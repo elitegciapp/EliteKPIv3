@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context';
-import { Expense, ExpenseType, ExpenseCategory, Deal } from '../types';
-import { Plus, Trash2, Fuel, AlertTriangle, Edit2 } from 'lucide-react';
+import { Expense, ExpenseType, ExpenseCategory } from '../types';
+import { Plus, Trash2, Fuel, AlertTriangle } from 'lucide-react';
 
 export const Expenses = () => {
   const { expenses, addExpense, deleteExpense, updateExpense, settings, deals } = useApp();
@@ -9,12 +10,11 @@ export const Expenses = () => {
   const [activeTab, setActiveTab] = useState<'Standard' | 'Mileage'>('Standard');
   const [editingId, setEditingId] = useState<string | null>(null);
   
-  // Delete Modal State
   const [expenseToDelete, setExpenseToDelete] = useState<string | null>(null);
 
   const initialFormState: Omit<Expense, 'id' | 'gallonsUsed' | 'fuelCost' | 'totalCost'> = {
     type: ExpenseType.STANDARD,
-    category: ExpenseCategory.PHOTOGRAPHY, // Default
+    category: ExpenseCategory.PHOTOGRAPHY,
     date: new Date().toISOString().split('T')[0],
     notes: '',
     quantity: 1,
@@ -27,15 +27,14 @@ export const Expenses = () => {
 
   const [formData, setFormData] = useState(initialFormState);
 
-  // Update defaults when modal opens or tab changes
   useEffect(() => {
-    if (editingId) return; // Don't override if editing
+    if (editingId) return;
 
     if (activeTab === 'Mileage') {
         setFormData(prev => ({
             ...prev,
             type: ExpenseType.MILEAGE,
-            category: ExpenseCategory.MILEAGE, // Auto-select Mileage category
+            category: ExpenseCategory.MILEAGE,
             mpg: settings.defaultMPG,
             gasPrice: settings.defaultGasPrice
         }));
@@ -43,16 +42,14 @@ export const Expenses = () => {
         setFormData(prev => ({ 
             ...prev, 
             type: ExpenseType.STANDARD,
-            category: ExpenseCategory.PHOTOGRAPHY // Reset to first standard category
+            category: ExpenseCategory.PHOTOGRAPHY 
         }));
     }
   }, [activeTab, settings, editingId]);
 
-  // Calculations
   const gallonsUsed = formData.milesDriven / (formData.mpg || 1);
   const fuelCost = gallonsUsed * formData.gasPrice;
   const standardTotal = formData.quantity * formData.costPerUnit;
-  
   const currentTotalCost = activeTab === 'Mileage' ? fuelCost : standardTotal;
 
   const handleOpenCreate = () => {
@@ -88,14 +85,11 @@ export const Expenses = () => {
 
     const expensePayload = {
         ...formData,
-        dealType: linkedDeal?.type, // Derived from linked deal
+        dealSide: linkedDeal?.dealSide, // Derived from linked deal
         gallonsUsed: activeTab === 'Mileage' ? gallonsUsed : 0,
         fuelCost: activeTab === 'Mileage' ? fuelCost : 0,
         totalCost: currentTotalCost,
-        // Ensure notes are only saved for allowed categories
-        notes: (formData.category === ExpenseCategory.MARKETING || formData.category === ExpenseCategory.OTHER || formData.category) // Save notes for all to be safe for now or stick to strict logic? Prompt says "edit... Notes".
-               ? formData.notes 
-               : undefined
+        notes: formData.notes
     };
 
     if (editingId) {
@@ -115,9 +109,6 @@ export const Expenses = () => {
         setExpenseToDelete(null);
     }
   };
-
-  // Check if notes field should be shown
-  const showNotes = true; // Allow notes for everything for better editing experience as requested
 
   return (
     <div className="space-y-6">
@@ -266,12 +257,11 @@ export const Expenses = () => {
                         >
                             <option value="">-- No Deal Linked --</option>
                             {deals.map(d => (
-                                <option key={d.id} value={d.id}>{d.name} ({d.type})</option>
+                                <option key={d.id} value={d.id}>{d.name} ({d.dealSide})</option>
                             ))}
                         </select>
                     </div>
 
-                    {showNotes && (
                       <div className="col-span-2">
                          <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Notes</label>
                          <textarea
@@ -281,7 +271,6 @@ export const Expenses = () => {
                             placeholder="Add details..."
                          />
                       </div>
-                    )}
                 </div>
 
                 {/* Specific Fields */}
@@ -326,7 +315,7 @@ export const Expenses = () => {
                                 <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">MPG</label>
                                 <input
                                     type="number"
-                                    readOnly={!editingId} // Locked unless I decide to unlock it. Prompt said: "Allow users to edit... Mileage / MPG". So unlock it in edit.
+                                    readOnly={!editingId} 
                                     value={formData.mpg}
                                     onChange={(e) => editingId && setFormData({...formData, mpg: parseFloat(e.target.value) || 0})}
                                     className={`w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-slate-500 dark:text-dark-text-muted focus:outline-none rounded-sm ${editingId ? 'bg-white dark:bg-dark-surface' : 'bg-slate-100 dark:bg-white/10 cursor-not-allowed'}`}
