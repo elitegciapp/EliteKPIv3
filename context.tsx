@@ -11,6 +11,7 @@ interface AppContextType {
   settings: KPISettings;
   theme: 'light' | 'dark';
   isDemo: boolean;
+  hasSeenMigrationMsg: boolean;
   addDeal: (deal: Deal) => void;
   updateDeal: (deal: Deal) => void;
   deleteDeal: (id: string) => void;
@@ -26,6 +27,7 @@ interface AppContextType {
   loadDemoData: () => void;
   clearData: () => void;
   refreshData: () => Promise<void>;
+  dismissMigrationMsg: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -37,6 +39,7 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   const [settings, setSettings] = useState<KPISettings>(defaultSettings);
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => StorageService.getTheme());
   const [isDemo, setIsDemo] = useState(false);
+  const [hasSeenMigrationMsg, setHasSeenMigrationMsg] = useState(() => StorageService.getMigrationMsgSeen());
 
   const refreshData = useCallback(async () => {
     try {
@@ -120,12 +123,17 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     await refreshData();
   };
 
+  const dismissMigrationMsg = () => {
+    StorageService.setMigrationMsgSeen();
+    setHasSeenMigrationMsg(true);
+  };
+
   return (
     <AppContext.Provider value={{
-      deals, expenses, activities, settings, theme, isDemo,
+      deals, expenses, activities, settings, theme, isDemo, hasSeenMigrationMsg,
       addDeal, updateDeal, deleteDeal, addExpense, updateExpense, deleteExpense,
       addActivity, deleteActivity, updateSettings, setTheme,
-      getDealExpenses, getDealNetCommission, loadDemoData, clearData, refreshData
+      getDealExpenses, getDealNetCommission, loadDemoData, clearData, refreshData, dismissMigrationMsg
     }}>
       {children}
     </AppContext.Provider>

@@ -1,3 +1,4 @@
+
 import { Deal, Expense, Activity, KPISettings } from '../types';
 
 const KEYS = {
@@ -6,6 +7,7 @@ const KEYS = {
   ACTIVITIES: 'realtor_kpi_activities',
   SETTINGS: 'realtor_kpi_settings',
   THEME: 'realtor_kpi_theme',
+  MIGRATION_MSG: 'realtor_kpi_migration_msg_seen',
 };
 
 export const defaultSettings: KPISettings = {
@@ -55,5 +57,12 @@ export const StorageService = {
   },
   saveTheme: (theme: 'light' | 'dark') => {
     localStorage.setItem(KEYS.THEME, theme);
+  },
+
+  getMigrationMsgSeen: (): boolean => {
+    return localStorage.getItem(KEYS.MIGRATION_MSG) === 'true';
+  },
+  setMigrationMsgSeen: () => {
+    localStorage.setItem(KEYS.MIGRATION_MSG, 'true');
   }
 };

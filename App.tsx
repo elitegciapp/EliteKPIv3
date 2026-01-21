@@ -1,10 +1,9 @@
+
 import React, { useState } from 'react';
 import { AppProvider } from './context';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { Deals } from './components/Deals';
-import { Expenses } from './components/Expenses';
-import { Activities } from './components/Activities';
 import { Settings } from './components/Settings';
 import { LandingPage } from './components/LandingPage';
 
@@ -16,8 +15,6 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
       case 'deals': return <Deals />;
-      case 'expenses': return <Expenses />;
-      case 'activities': return <Activities />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }

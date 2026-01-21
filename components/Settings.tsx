@@ -40,7 +40,6 @@ export const Settings = () => {
   const handleLoadDemo = () => {
     if (window.confirm("Overwrite existing data with demo data?")) {
         loadDemoData();
-        // Force reload to ensure fresh state from storage
         setTimeout(() => {
             window.location.reload();
         }, 100);
@@ -68,7 +67,6 @@ export const Settings = () => {
     const themeColor = '#0B1220'; // Navy
     const goldColor = '#C9A24D';
 
-    // 1. Determine Date Range
     let start: Date, end: Date, rangeLabel: string;
     
     if (exportType === 'Month') {
@@ -92,7 +90,6 @@ export const Settings = () => {
         rangeLabel = `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
     }
 
-    // 2. Filter Data
     const rangeDeals = deals.filter(d => {
         if (d.stage === DealStage.CLOSED && d.closedAt) {
             const dDate = new Date(d.closedAt);
@@ -111,15 +108,12 @@ export const Settings = () => {
         return aDate >= start && aDate <= end;
     });
 
-    // 3. Calculate KPIs
-    const gci = rangeDeals.reduce((sum, d) => sum + (d.commission || 0), 0);
+    const gci = rangeDeals.reduce((sum, d) => sum + (d.commissionEarned || 0), 0);
     const totalExpenses = rangeExpenses.reduce((sum, e) => sum + e.totalCost, 0);
     const netIncome = gci - totalExpenses;
     const closedCount = rangeDeals.length;
     const avgComm = closedCount > 0 ? gci / closedCount : 0;
 
-    // 4. Build PDF
-    // Header
     doc.setFont("times", "bold");
     doc.setFontSize(22);
     doc.setTextColor(themeColor);
@@ -134,7 +128,6 @@ export const Settings = () => {
     doc.setLineWidth(0.5);
     doc.line(14, 28, 196, 28);
 
-    // Title & Range
     doc.setFont("times", "bold");
     doc.setFontSize(16);
     doc.setTextColor(themeColor);
@@ -146,7 +139,6 @@ export const Settings = () => {
     doc.text(`Period: ${rangeLabel}`, 14, 46);
     doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 51);
 
-    // KPI Grid
     const kpiY = 60;
     const kpiW = 40;
     const kpiH = 25;
@@ -171,39 +163,34 @@ export const Settings = () => {
     drawKPI("Deals Closed", closedCount.toString(), 102);
     drawKPI("Avg Comm.", `$${avgComm.toLocaleString(undefined, {maximumFractionDigits:0})}`, 146);
 
-    // Deals Table
     doc.setFont("times", "bold");
     doc.setFontSize(12);
     doc.setTextColor(themeColor);
     doc.text("Closed Deals", 14, 95);
 
     const dealsData = rangeDeals.map(d => [
-        d.name,
+        d.propertyAddress || d.name,
         d.dealSide,
-        d.closedAt || '-',
-        `$${(d.commission || 0).toLocaleString()}`
+        d.closedAt ? d.closedAt.split('T')[0] : '-',
+        `$${(d.commissionEarned || 0).toLocaleString()}`
     ]);
 
     autoTable(doc, {
         startY: 100,
-        head: [['Property', 'Type', 'Close Date', 'Commission']],
+        head: [['Property', 'Side', 'Date', 'Commission']],
         body: dealsData,
         theme: 'plain',
         headStyles: { fillColor: [11, 18, 32], textColor: [255, 255, 255], font: 'times', fontStyle: 'bold' },
         styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
-        columnStyles: {
-            3: { halign: 'right' }
-        }
+        columnStyles: { 3: { halign: 'right' } }
     });
 
-    // Expenses Summary
     let finalY = (doc as any).lastAutoTable.finalY + 15;
     doc.setFont("times", "bold");
     doc.setFontSize(12);
     doc.setTextColor(themeColor);
     doc.text("Expense Summary", 14, finalY);
 
-    // Group expenses
     const expByType: Record<string, number> = {};
     rangeExpenses.forEach(e => {
         expByType[e.category] = (expByType[e.category] || 0) + e.totalCost;
@@ -212,8 +199,6 @@ export const Settings = () => {
     const expData = Object.entries(expByType)
         .sort((a,b) => b[1] - a[1])
         .map(([cat, amount]) => [cat, `$${amount.toLocaleString(undefined, {minimumFractionDigits: 2})}`]);
-    
-    // Add Total Row
     expData.push(['TOTAL', `$${totalExpenses.toLocaleString(undefined, {minimumFractionDigits: 2})}`]);
 
     autoTable(doc, {
@@ -223,19 +208,11 @@ export const Settings = () => {
         theme: 'plain',
         headStyles: { fillColor: [240, 240, 240], textColor: [50, 50, 50], font: 'times', fontStyle: 'bold' },
         styles: { font: 'helvetica', fontSize: 9 },
-        columnStyles: {
-            1: { halign: 'right', fontStyle: 'bold' }
-        }
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // Activity Summary
     finalY = (doc as any).lastAutoTable.finalY + 15;
-    
-    // Check for page break space
-    if (finalY > 250) {
-        doc.addPage();
-        finalY = 20;
-    }
+    if (finalY > 250) { doc.addPage(); finalY = 20; }
 
     doc.setFont("times", "bold");
     doc.setFontSize(12);
@@ -243,14 +220,8 @@ export const Settings = () => {
     doc.text("Activity Summary", 14, finalY);
 
     const actByType: Record<string, number> = {};
-    rangeActivities.forEach(a => {
-        actByType[a.category] = (actByType[a.category] || 0) + 1;
-    });
-    
-    const actData = Object.entries(actByType)
-        .sort((a,b) => b[1] - a[1])
-        .map(([cat, count]) => [cat, count.toString()]);
-    
+    rangeActivities.forEach(a => { actByType[a.category] = (actByType[a.category] || 0) + 1; });
+    const actData = Object.entries(actByType).sort((a,b) => b[1] - a[1]).map(([cat, count]) => [cat, count.toString()]);
     actData.push(['TOTAL', rangeActivities.length.toString()]);
 
     autoTable(doc, {
@@ -260,12 +231,9 @@ export const Settings = () => {
         theme: 'plain',
         headStyles: { fillColor: [240, 240, 240], textColor: [50, 50, 50], font: 'times', fontStyle: 'bold' },
         styles: { font: 'helvetica', fontSize: 9 },
-        columnStyles: {
-            1: { halign: 'right', fontStyle: 'bold' }
-        }
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
     for(let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
@@ -282,12 +250,12 @@ export const Settings = () => {
       <header className="flex justify-between items-center mb-8">
         <div>
           <h2 className="text-2xl md:text-3xl font-bold text-navy dark:text-dark-text-primary font-serif">KPI Settings</h2>
-          <p className="text-slate-500 dark:text-dark-text-secondary mt-2 font-normal">Global assumptions and goals.</p>
+          <p className="text-slate-500 dark:text-dark-text-secondary mt-2 font-normal font-sans">Global assumptions and goals.</p>
         </div>
         <button
           onClick={handleSave}
           disabled={!isDirty}
-          className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-sm transition-all shadow-none ${
+          className={`flex items-center gap-2 px-6 py-2.5 text-sm font-bold uppercase tracking-widest rounded-sm transition-all shadow-none ${
             isDirty 
               ? 'bg-navy dark:bg-gold text-white dark:text-navy hover:bg-navy-light dark:hover:bg-gold-hover' 
               : 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-dark-text-muted cursor-not-allowed'
@@ -299,24 +267,20 @@ export const Settings = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Left Column: Inputs */}
         <div className="space-y-8">
-            
-          {/* APPEARANCE SECTION (NEW) */}
           <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm shadow-sm">
              <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-dark-border pb-2">
                  <h3 className="text-sm font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider font-serif">Appearance</h3>
              </div>
              <div>
-                  <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Interface Theme</label>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2 font-sans">Interface Theme</label>
                   <div className="flex rounded-sm overflow-hidden border border-slate-200 dark:border-dark-border">
                      <button
                          onClick={() => setTheme('light')}
-                         className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold uppercase transition-colors ${
+                         className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${
                              theme === 'light'
                              ? 'bg-navy dark:bg-gold text-white dark:text-navy'
-                             : 'bg-white dark:bg-white/5 text-slate-500 dark:text-dark-text-secondary hover:bg-slate-50 dark:hover:bg-white/10'
+                             : 'bg-white dark:bg-white/5 text-slate-500 dark:text-dark-text-secondary hover:bg-slate-50'
                          }`}
                      >
                          <Sun size={14} />
@@ -324,10 +288,10 @@ export const Settings = () => {
                      </button>
                      <button
                          onClick={() => setTheme('dark')}
-                          className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold uppercase transition-colors ${
+                          className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${
                              theme === 'dark'
                              ? 'bg-navy dark:bg-gold text-white dark:text-navy'
-                             : 'bg-white dark:bg-white/5 text-slate-500 dark:text-dark-text-secondary hover:bg-slate-50 dark:hover:bg-white/10'
+                             : 'bg-white dark:bg-white/5 text-slate-500 dark:text-dark-text-secondary hover:bg-slate-50'
                          }`}
                      >
                          <Moon size={14} />
@@ -337,26 +301,23 @@ export const Settings = () => {
              </div>
           </section>
           
-          {/* PDF EXPORT SECTION */}
           <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm shadow-sm">
              <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-dark-border pb-2">
                  <FileText className="text-gold" size={20} />
                  <h3 className="text-sm font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider font-serif">Export Reports (PDF)</h3>
              </div>
-             
              <div className="space-y-6">
-                 {/* Range Selector */}
                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Report Range</label>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2 font-sans">Report Range</label>
                     <div className="flex rounded-sm overflow-hidden border border-slate-200 dark:border-dark-border">
                         {['Month', 'Quarter', 'Year', 'Custom'].map(type => (
                             <button
                                 key={type}
                                 onClick={() => setExportType(type as any)}
-                                className={`flex-1 py-2 text-xs font-bold uppercase transition-colors ${
+                                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${
                                     exportType === type 
                                     ? 'bg-navy dark:bg-gold text-white dark:text-navy' 
-                                    : 'bg-white dark:bg-white/5 text-slate-500 dark:text-dark-text-secondary hover:bg-slate-50 dark:hover:bg-white/10'
+                                    : 'bg-white dark:bg-white/5 text-slate-500 hover:bg-slate-50'
                                 }`}
                             >
                                 {type}
@@ -364,44 +325,26 @@ export const Settings = () => {
                         ))}
                     </div>
                  </div>
-
-                 {/* Dynamic Inputs */}
                  <div className="grid grid-cols-2 gap-4">
                      {exportType === 'Month' && (
                          <>
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Month</label>
-                                <select 
-                                    value={selectedMonth}
-                                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface"
-                                >
-                                    {Array.from({length: 12}, (_, i) => (
-                                        <option key={i} value={i}>{new Date(2000, i, 1).toLocaleString('default', {month: 'long'})}</option>
-                                    ))}
+                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2 font-sans">Month</label>
+                                <select value={selectedMonth} onChange={(e) => setSelectedMonth(parseInt(e.target.value))} className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface">
+                                    {Array.from({length: 12}, (_, i) => (<option key={i} value={i}>{new Date(2000, i, 1).toLocaleString('default', {month: 'long'})}</option>))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Year</label>
-                                <input 
-                                    type="number"
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface"
-                                />
+                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2 font-sans">Year</label>
+                                <input type="number" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface" />
                             </div>
                          </>
                      )}
-
                      {exportType === 'Quarter' && (
                          <>
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Quarter</label>
-                                <select 
-                                    value={selectedQuarter}
-                                    onChange={(e) => setSelectedQuarter(parseInt(e.target.value))}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface"
-                                >
+                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2 font-sans">Quarter</label>
+                                <select value={selectedQuarter} onChange={(e) => setSelectedQuarter(parseInt(e.target.value))} className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface">
                                     <option value={1}>Q1 (Jan-Mar)</option>
                                     <option value={2}>Q2 (Apr-Jun)</option>
                                     <option value={3}>Q3 (Jul-Sep)</option>
@@ -409,222 +352,38 @@ export const Settings = () => {
                                 </select>
                             </div>
                              <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Year</label>
-                                <input 
-                                    type="number"
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface"
-                                />
+                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2 font-sans">Year</label>
+                                <input type="number" value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface" />
                             </div>
                          </>
                      )}
-
-                     {exportType === 'Year' && (
-                         <div className="col-span-2">
-                             <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Year</label>
-                                <input 
-                                    type="number"
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface"
-                                />
-                         </div>
-                     )}
-
                      {exportType === 'Custom' && (
                          <>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Start Date</label>
-                                <input 
-                                    type="date"
-                                    value={customStart}
-                                    onChange={(e) => setCustomStart(e.target.value)}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">End Date</label>
-                                <input 
-                                    type="date"
-                                    value={customEnd}
-                                    onChange={(e) => setCustomEnd(e.target.value)}
-                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-navy dark:text-dark-text-primary rounded-sm bg-white dark:bg-dark-surface"
-                                />
-                            </div>
+                            <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Start</label><input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-full border border-slate-200 px-3 py-2 rounded-sm bg-white dark:bg-dark-surface" /></div>
+                            <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">End</label><input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-full border border-slate-200 px-3 py-2 rounded-sm bg-white dark:bg-dark-surface" /></div>
                          </>
                      )}
                  </div>
-
-                 <button
-                    onClick={generatePDF}
-                    disabled={exportType === 'Custom' && (!customStart || !customEnd || customStart > customEnd)}
-                    className="w-full flex items-center justify-center gap-2 bg-navy dark:bg-gold text-white dark:text-navy px-4 py-3 text-sm font-bold uppercase tracking-wider rounded-sm hover:bg-navy-light dark:hover:bg-gold-hover transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                     <Download size={18} />
-                     Export PDF
-                 </button>
+                 <button onClick={generatePDF} className="w-full flex items-center justify-center gap-2 bg-navy dark:bg-gold text-white dark:text-navy px-4 py-3 text-xs font-bold uppercase tracking-widest rounded-sm hover:opacity-90 transition-all"><Download size={18} /> Export PDF</button>
              </div>
           </section>
 
-          <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
+          <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 rounded-sm">
             <h3 className="text-sm font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider mb-6 border-b border-slate-100 dark:border-dark-border pb-2 font-serif">Annual Goals</h3>
             <div className="grid grid-cols-1 gap-6">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Annual GCI Goal ($)</label>
-                <input
-                  type="number"
-                  name="annualGCIGoal"
-                  value={formData.annualGCIGoal}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Target Close Rate (%)</label>
-                <input
-                  type="number"
-                  name="targetCloseRate"
-                  value={formData.targetCloseRate}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
-                />
-              </div>
+              <div><label className="block text-xs font-bold text-slate-400 uppercase mb-2 font-sans">Annual GCI Goal ($)</label><input type="number" name="annualGCIGoal" value={formData.annualGCIGoal} onChange={handleChange} className="w-full border border-slate-200 px-4 py-2.5 rounded-sm bg-white dark:bg-dark-surface font-mono" /></div>
+              <div><label className="block text-xs font-bold text-slate-400 uppercase mb-2 font-sans">Target Close Rate (%)</label><input type="number" name="targetCloseRate" value={formData.targetCloseRate} onChange={handleChange} className="w-full border border-slate-200 px-4 py-2.5 rounded-sm bg-white dark:bg-dark-surface font-mono" /></div>
             </div>
           </section>
-
-          <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
-            <h3 className="text-sm font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider mb-6 border-b border-slate-100 dark:border-dark-border pb-2 font-serif">Commission Assumptions</h3>
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Avg Buyer Comm ($)</label>
-                <input
-                  type="number"
-                  name="avgBuyerCommission"
-                  value={formData.avgBuyerCommission}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Avg Seller Comm ($)</label>
-                <input
-                  type="number"
-                  name="avgSellerCommission"
-                  value={formData.avgSellerCommission}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm">
-            <h3 className="text-sm font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider mb-6 border-b border-slate-100 dark:border-dark-border pb-2 font-serif">Global Defaults</h3>
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Default MPG</label>
-                <input
-                  type="number"
-                  name="defaultMPG"
-                  value={formData.defaultMPG}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Gas Price ($/gal)</label>
-                <input
-                  type="number"
-                  name="defaultGasPrice"
-                  value={formData.defaultGasPrice}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Est. Tax Rate (%)</label>
-                <input
-                  type="number"
-                  name="estimatedTaxRate"
-                  value={formData.estimatedTaxRate}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm transition-colors bg-white dark:bg-dark-surface"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* DATA MANAGEMENT SECTION */}
-          <section className="bg-white dark:bg-dark-surface p-6 border border-slate-200 dark:border-dark-border rounded-sm shadow-sm border-l-4 border-l-gold">
-            <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-dark-border pb-2">
-                 <Database className="text-gold" size={20} />
-                 <h3 className="text-sm font-bold text-navy dark:text-dark-text-primary uppercase tracking-wider font-serif">Data Management</h3>
-            </div>
-            
-            <p className="text-sm text-slate-500 dark:text-dark-text-secondary mb-6 leading-relaxed">
-                Use these tools to populate the application with sample data for testing, or to clear all local records to start fresh.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button
-                    onClick={handleLoadDemo}
-                    className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-navy dark:text-white border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-white/5 hover:bg-white hover:border-navy dark:hover:bg-white/10 dark:hover:border-gold transition-all rounded-sm uppercase tracking-wide"
-                >
-                    <RefreshCw size={16} />
-                    Load Demo Data
-                </button>
-
-                 <button
-                    onClick={handleClearData}
-                    className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all rounded-sm uppercase tracking-wide"
-                >
-                    <Trash2 size={16} />
-                    Clear All Data
-                </button>
-            </div>
-          </section>
-
         </div>
 
-        {/* Right Column: Calculated Requirements (Executive Panel) */}
         <div className="bg-luxury-gradient dark:bg-luxury-gradient-dark text-white p-8 rounded-sm shadow-none h-fit sticky top-6 border border-white/5">
-          <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
-            <RefreshCw className="text-gold" size={24} />
-            <h3 className="text-xl font-bold tracking-tight font-serif">Required Activity</h3>
-          </div>
-          
-          <div className="space-y-8">
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Required Deals</p>
-              <div className="flex justify-between items-baseline">
-                <span className="text-4xl font-bold tracking-tight text-white font-serif">{Math.ceil(reqDealsYear)}</span>
-                <span className="text-slate-400 text-sm">per year</span>
-              </div>
-              <div className="flex justify-between items-baseline mt-2 pt-3 border-t border-white/5">
-                <span className="text-2xl font-semibold text-gold font-serif">{reqDealsMonth.toFixed(1)}</span>
-                <span className="text-slate-400 text-sm">per month</span>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Required Appointments</p>
-              <div className="flex justify-between items-baseline">
-                <span className="text-4xl font-bold tracking-tight text-white font-serif">{Math.ceil(reqApptsYear)}</span>
-                <span className="text-slate-400 text-sm">per year</span>
-              </div>
-               <div className="flex justify-between items-baseline mt-2 pt-3 border-t border-white/5">
-                <span className="text-2xl font-semibold text-gold font-serif">{Math.ceil(reqApptsMonth)}</span>
-                <span className="text-slate-400 text-sm">per month</span>
-              </div>
-            </div>
-
-            <div className="mt-8 p-4 bg-white/5 rounded-sm text-sm text-slate-300 leading-relaxed border border-white/5">
-              Based on an average commission of <span className="text-white font-bold">${((formData.avgBuyerCommission + formData.avgSellerCommission) / 2).toLocaleString()}</span> and a close rate of <span className="text-white font-bold">{formData.targetCloseRate}%</span>.
-            </div>
+          <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4"><RefreshCw className="text-gold" size={24} /><h3 className="text-xl font-bold tracking-tight font-serif">Required Activity</h3></div>
+          <div className="space-y-8 font-sans">
+            <div><p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Required Deals</p><div className="flex justify-between items-baseline"><span className="text-4xl font-bold tracking-tight text-white font-serif">{Math.ceil(reqDealsYear)}</span><span className="text-slate-400 text-sm">per year</span></div><div className="flex justify-between items-baseline mt-2 pt-3 border-t border-white/5"><span className="text-2xl font-semibold text-gold font-serif">{reqDealsMonth.toFixed(1)}</span><span className="text-slate-400 text-sm">per month</span></div></div>
+            <div><p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Required Appointments</p><div className="flex justify-between items-baseline"><span className="text-4xl font-bold tracking-tight text-white font-serif">{Math.ceil(reqApptsYear)}</span><span className="text-slate-400 text-sm">per year</span></div><div className="flex justify-between items-baseline mt-2 pt-3 border-t border-white/5"><span className="text-2xl font-semibold text-gold font-serif">{Math.ceil(reqApptsMonth)}</span><span className="text-slate-400 text-sm">per month</span></div></div>
           </div>
         </div>
-
       </div>
     </div>
   );

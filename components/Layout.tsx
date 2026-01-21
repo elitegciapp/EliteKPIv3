@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { LayoutDashboard, DollarSign, Briefcase, Settings, LogOut, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Briefcase } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,9 +12,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'deals', label: 'Deals', icon: Briefcase },
-    { id: 'expenses', label: 'Expenses', icon: DollarSign },
-    { id: 'activities', label: 'Activities', icon: CheckSquare },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'settings', label: 'KPI Settings', icon: Settings },
   ];
 
   return (
@@ -46,7 +45,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                     <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gold shadow-[0_0_8px_rgba(201,162,77,0.3)]"></div>
                 )}
                 <Icon size={18} className={isActive ? 'text-gold' : 'text-slate-500'} />
-                {item.label === 'Settings' ? 'KPI Settings' : item.label}
+                {item.label}
               </button>
             );
           })}
