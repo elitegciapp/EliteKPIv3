@@ -112,7 +112,7 @@ export const Settings = () => {
     });
 
     // 3. Calculate KPIs
-    const gci = rangeDeals.reduce((sum, d) => sum + (d.actualGci || 0), 0);
+    const gci = rangeDeals.reduce((sum, d) => sum + (d.commission || 0), 0);
     const totalExpenses = rangeExpenses.reduce((sum, e) => sum + e.totalCost, 0);
     const netIncome = gci - totalExpenses;
     const closedCount = rangeDeals.length;
@@ -181,7 +181,7 @@ export const Settings = () => {
         d.name,
         d.dealSide,
         d.closedAt || '-',
-        `$${(d.actualGci || 0).toLocaleString()}`
+        `$${(d.commission || 0).toLocaleString()}`
     ]);
 
     autoTable(doc, {

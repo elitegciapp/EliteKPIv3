@@ -199,13 +199,15 @@ export const Expenses = () => {
        {/* Modal */}
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/20 dark:bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-dark-surface w-full max-w-lg rounded-sm shadow-2xl overflow-hidden animate-fade-in-up border border-slate-200 dark:border-dark-border">
-            <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-dark-border">
+          <div className="bg-white dark:bg-dark-surface w-full max-w-lg rounded-sm shadow-2xl flex flex-col max-h-[90vh] animate-fade-in-up border border-slate-200 dark:border-dark-border overflow-hidden">
+            
+            {/* Header */}
+            <div className="flex-none flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface z-10">
               <h3 className="text-lg font-bold text-navy dark:text-dark-text-primary font-serif">{editingId ? 'Edit Expense' : 'Log Expense'}</h3>
             </div>
             
             {!editingId && (
-                <div className="flex border-b border-slate-100 dark:border-dark-border">
+                <div className="flex-none flex border-b border-slate-100 dark:border-dark-border">
                     <button 
                         onClick={() => setActiveTab('Standard')}
                         className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'Standard' ? 'border-navy dark:border-gold text-navy dark:text-white' : 'border-transparent text-slate-400 dark:text-dark-text-muted hover:bg-slate-50 dark:hover:bg-white/5 hover:text-navy dark:hover:text-white'}`}
@@ -221,7 +223,8 @@ export const Expenses = () => {
                 </div>
             )}
 
-            <div className="p-8 space-y-6">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
                 
                 {/* Common Fields */}
                 <div className="grid grid-cols-2 gap-6">
@@ -249,112 +252,105 @@ export const Expenses = () => {
                         </select>
                     </div>
                      <div className="col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Link to Deal (Optional)</label>
-                        <select
+                         <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Link to Deal (Optional)</label>
+                         <select
                             value={formData.dealId}
                             onChange={(e) => setFormData({...formData, dealId: e.target.value})}
-                            className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                        >
+                             className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
+                         >
                             <option value="">-- No Deal Linked --</option>
                             {deals.map(d => (
                                 <option key={d.id} value={d.id}>{d.name} ({d.dealSide})</option>
                             ))}
-                        </select>
-                    </div>
-
-                      <div className="col-span-2">
-                         <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Notes</label>
-                         <textarea
-                            value={formData.notes || ''}
-                            onChange={(e) => setFormData({...formData, notes: e.target.value.slice(0, 500)})}
-                            className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface h-20 resize-none"
-                            placeholder="Add details..."
-                         />
-                      </div>
+                         </select>
+                     </div>
                 </div>
 
-                {/* Specific Fields */}
+                {/* Tab Specific Fields */}
                 {activeTab === 'Standard' ? (
-                     <div className="grid grid-cols-2 gap-6 bg-slate-50 dark:bg-white/5 p-6 border border-slate-200 dark:border-dark-border rounded-sm">
+                    <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-sm border border-slate-100 dark:border-dark-border grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Quantity</label>
-                            <input
+                             <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Cost ($)</label>
+                             <input
                                 type="number"
-                                min="1"
-                                value={formData.quantity}
-                                onChange={(e) => setFormData({...formData, quantity: parseFloat(e.target.value) || 0})}
-                                className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Cost Per Unit</label>
-                            <input
-                                type="number"
-                                min="0"
-                                value={formData.costPerUnit}
+                                value={formData.costPerUnit || ''}
                                 onChange={(e) => setFormData({...formData, costPerUnit: parseFloat(e.target.value) || 0})}
                                 className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                            />
+                             />
                         </div>
-                     </div>
-                ) : (
-                    <div className="space-y-4 bg-slate-50 dark:bg-white/5 p-6 border border-slate-200 dark:border-dark-border rounded-sm">
-                         <div>
-                            <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Miles Driven</label>
-                            <input
+                        <div>
+                             <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Qty</label>
+                             <input
                                 type="number"
-                                min="0"
-                                value={formData.milesDriven}
-                                onChange={(e) => setFormData({...formData, milesDriven: parseFloat(e.target.value) || 0})}
+                                value={formData.quantity}
+                                onChange={(e) => setFormData({...formData, quantity: parseFloat(e.target.value) || 1})}
                                 className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
-                                placeholder="0"
-                            />
+                             />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-sm border border-slate-100 dark:border-dark-border space-y-4">
+                         <div>
+                             <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Miles Driven</label>
+                             <input
+                                type="number"
+                                value={formData.milesDriven || ''}
+                                onChange={(e) => setFormData({...formData, milesDriven: parseFloat(e.target.value) || 0})}
+                                className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface font-bold text-lg"
+                                placeholder="e.g. 25"
+                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">MPG</label>
+                             <div>
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">Vehicle MPG</label>
                                 <input
                                     type="number"
-                                    readOnly={!editingId} 
                                     value={formData.mpg}
-                                    onChange={(e) => editingId && setFormData({...formData, mpg: parseFloat(e.target.value) || 0})}
-                                    className={`w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-slate-500 dark:text-dark-text-muted focus:outline-none rounded-sm ${editingId ? 'bg-white dark:bg-dark-surface' : 'bg-slate-100 dark:bg-white/10 cursor-not-allowed'}`}
+                                    onChange={(e) => setFormData({...formData, mpg: parseFloat(e.target.value) || 0})}
+                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Gas Price ($)</label>
+                             </div>
+                             <div>
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-1">Gas Price ($)</label>
                                 <input
                                     type="number"
-                                    readOnly={!editingId}
                                     value={formData.gasPrice}
-                                    onChange={(e) => editingId && setFormData({...formData, gasPrice: parseFloat(e.target.value) || 0})}
-                                    className={`w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-slate-500 dark:text-dark-text-muted focus:outline-none rounded-sm ${editingId ? 'bg-white dark:bg-dark-surface' : 'bg-slate-100 dark:bg-white/10 cursor-not-allowed'}`}
+                                    onChange={(e) => setFormData({...formData, gasPrice: parseFloat(e.target.value) || 0})}
+                                    className="w-full border border-slate-200 dark:border-dark-border px-3 py-2 text-sm text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface"
                                 />
-                            </div>
+                             </div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-200 dark:border-white/10 flex justify-between items-center">
+                            <span className="text-xs text-slate-500 dark:text-dark-text-secondary">Calculated Fuel Cost</span>
+                            <span className="text-lg font-bold text-navy dark:text-white font-serif">${fuelCost.toFixed(2)}</span>
                         </div>
                     </div>
                 )}
-
-                {/* Total Display */}
-                <div className="flex justify-between items-center bg-navy dark:bg-white/10 text-white p-6 rounded-sm border border-transparent dark:border-dark-border">
-                    <span className="uppercase tracking-wider text-xs font-bold text-slate-400 dark:text-dark-text-secondary">Total Calculated Cost</span>
-                    <span className="text-2xl font-bold font-serif">${currentTotalCost.toFixed(2)}</span>
+                
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Notes</label>
+                    <textarea
+                        value={formData.notes || ''}
+                        onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                        className="w-full border border-slate-200 dark:border-dark-border px-4 py-2.5 text-navy dark:text-dark-text-primary focus:outline-none focus:border-navy dark:focus:border-gold rounded-sm bg-white dark:bg-dark-surface h-24 resize-none"
+                    />
                 </div>
-
             </div>
 
-             <div className="px-8 py-6 bg-slate-50 dark:bg-white/5 border-t border-slate-200 dark:border-dark-border flex justify-end gap-3">
-              <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-slate-500 dark:text-dark-text-secondary hover:text-navy dark:hover:text-white">Cancel</button>
+            {/* Footer */}
+            <div className="flex-none px-6 py-4 md:px-8 md:py-6 bg-slate-50 dark:bg-white/5 border-t border-slate-200 dark:border-dark-border flex justify-end gap-3 z-10">
+              <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-slate-500 dark:text-dark-text-secondary hover:text-navy dark:hover:text-white transition-colors">Cancel</button>
               <button onClick={handleSave} className="px-6 py-2.5 text-sm font-medium bg-navy dark:bg-gold text-white dark:text-navy hover:bg-navy-light dark:hover:bg-gold-hover rounded-sm shadow-none transition-colors">
-                {editingId ? 'Update Expense' : 'Save Expense'}
+                Save Expense
               </button>
             </div>
+
           </div>
         </div>
        )}
 
-       {/* Delete Confirmation Modal */}
-       {expenseToDelete && (
+        {/* Delete Confirmation Modal */}
+      {expenseToDelete && (
          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-navy/40 dark:bg-black/70 backdrop-blur-sm p-4">
             <div className="bg-white dark:bg-dark-surface w-full max-w-sm rounded-sm shadow-2xl overflow-hidden animate-fade-in-up border border-slate-200 dark:border-dark-border">
                 <div className="p-6 text-center">
@@ -363,7 +359,7 @@ export const Expenses = () => {
                     </div>
                     <h3 className="text-lg font-bold font-serif text-navy dark:text-white mb-2">Delete Expense?</h3>
                     <p className="text-slate-500 dark:text-dark-text-secondary text-sm mb-6">
-                        This will permanently remove this expense from your records and update totals.
+                        This will permanently remove this expense record.
                     </p>
                     <div className="flex gap-3 justify-center">
                         <button 
@@ -383,7 +379,6 @@ export const Expenses = () => {
             </div>
          </div>
        )}
-
     </div>
   );
 };

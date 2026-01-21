@@ -107,12 +107,15 @@ export const Activities = () => {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/20 dark:bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-dark-surface w-full max-w-md rounded-sm shadow-2xl overflow-hidden animate-fade-in-up border border-slate-200 dark:border-dark-border">
-            <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-dark-border">
+          <div className="bg-white dark:bg-dark-surface w-full max-w-md rounded-sm shadow-2xl flex flex-col max-h-[90vh] animate-fade-in-up border border-slate-200 dark:border-dark-border overflow-hidden">
+            
+            {/* Header - Fixed */}
+            <div className="flex-none flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-dark-border">
               <h3 className="text-lg font-bold text-navy dark:text-dark-text-primary font-serif">Log Activity</h3>
             </div>
 
-            <div className="p-8 space-y-6">
+            {/* Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
               <div>
                 <label className="block text-xs font-bold text-slate-400 dark:text-dark-text-muted uppercase tracking-wider mb-2">Date</label>
                 <input
@@ -161,7 +164,8 @@ export const Activities = () => {
               </div>
             </div>
 
-            <div className="px-8 py-6 bg-slate-50 dark:bg-white/5 border-t border-slate-200 dark:border-dark-border flex justify-end gap-3">
+            {/* Footer - Fixed */}
+            <div className="flex-none px-8 py-6 bg-slate-50 dark:bg-white/5 border-t border-slate-200 dark:border-dark-border flex justify-end gap-3">
               <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-slate-500 dark:text-dark-text-secondary hover:text-navy dark:hover:text-white">Cancel</button>
               <button onClick={handleSave} className="px-6 py-2.5 text-sm font-medium bg-navy dark:bg-gold text-white dark:text-navy hover:bg-navy-light dark:hover:bg-gold-hover rounded-sm shadow-none">
                 Save Activity

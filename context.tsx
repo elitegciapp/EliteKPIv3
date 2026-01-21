@@ -38,7 +38,6 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => StorageService.getTheme());
   const [isDemo, setIsDemo] = useState(false);
 
-  // Core Data Fetcher
   const refreshData = useCallback(async () => {
     try {
       const [fetchedDeals, fetchedExpenses, fetchedActivities, demoStatus] = await Promise.all([
@@ -47,35 +46,27 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
         APIService.getActivities(),
         APIService.isDemoMode()
       ]);
-      
       if (Array.isArray(fetchedDeals)) setDeals(fetchedDeals);
       if (Array.isArray(fetchedExpenses)) setExpenses(fetchedExpenses);
       if (Array.isArray(fetchedActivities)) setActivities(fetchedActivities);
       setIsDemo(demoStatus);
-      
     } catch (err) {
       console.error("Data refresh error:", err);
     }
   }, []);
 
-  // Initialize data from API
   useEffect(() => {
     refreshData();
-    
-    // Load local settings
     setSettings(StorageService.getSettings());
     const storedTheme = StorageService.getTheme();
     setThemeState(storedTheme);
-    if (storedTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    if (storedTheme === 'dark') document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
   }, [refreshData]);
 
   const saveDeals = (newDeals: Deal[]) => {
-    setDeals(newDeals); // Optimistic UI update
-    APIService.saveDeals(newDeals); // Server sync
+    setDeals(newDeals);
+    APIService.saveDeals(newDeals);
   };
 
   const saveExpenses = (newExpenses: Expense[]) => {
@@ -88,43 +79,20 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
     APIService.saveActivities(newActivities);
   };
 
-  const addDeal = (deal: Deal) => {
-    saveDeals([...deals, deal]);
-  };
-
-  const updateDeal = (updatedDeal: Deal) => {
-    saveDeals(deals.map(d => d.id === updatedDeal.id ? updatedDeal : d));
-  };
-
+  const addDeal = (deal: Deal) => saveDeals([...deals, deal]);
+  const updateDeal = (updatedDeal: Deal) => saveDeals(deals.map(d => d.id === updatedDeal.id ? updatedDeal : d));
   const deleteDeal = (id: string) => {
-    const updatedExpenses = expenses.filter(e => e.dealId !== id);
-    const updatedActivities = activities.filter(a => a.dealId !== id);
-    const updatedDeals = deals.filter(d => d.id !== id);
-
-    saveExpenses(updatedExpenses);
-    saveActivities(updatedActivities);
-    saveDeals(updatedDeals);
+    saveExpenses(expenses.filter(e => e.dealId !== id));
+    saveActivities(activities.filter(a => a.dealId !== id));
+    saveDeals(deals.filter(d => d.id !== id));
   };
 
-  const addExpense = (expense: Expense) => {
-    saveExpenses([...expenses, expense]);
-  };
+  const addExpense = (expense: Expense) => saveExpenses([...expenses, expense]);
+  const updateExpense = (updatedExpense: Expense) => saveExpenses(expenses.map(e => e.id === updatedExpense.id ? updatedExpense : e));
+  const deleteExpense = (id: string) => saveExpenses(expenses.filter(e => e.id !== id));
 
-  const updateExpense = (updatedExpense: Expense) => {
-    saveExpenses(expenses.map(e => e.id === updatedExpense.id ? updatedExpense : e));
-  };
-
-  const deleteExpense = (id: string) => {
-    saveExpenses(expenses.filter(e => e.id !== id));
-  };
-
-  const addActivity = (activity: Activity) => {
-    saveActivities([...activities, activity]);
-  };
-
-  const deleteActivity = (id: string) => {
-    saveActivities(activities.filter(a => a.id !== id));
-  };
+  const addActivity = (activity: Activity) => saveActivities([...activities, activity]);
+  const deleteActivity = (id: string) => saveActivities(activities.filter(a => a.id !== id));
 
   const updateSettings = (newSettings: KPISettings) => {
     setSettings(newSettings);
@@ -134,67 +102,30 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
   const setTheme = (newTheme: 'light' | 'dark') => {
     setThemeState(newTheme);
     StorageService.saveTheme(newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    if (newTheme === 'dark') document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
   };
 
-  const getDealExpenses = (dealId: string) => {
-    return expenses.filter(e => e.dealId === dealId);
-  };
+  const getDealExpenses = (dealId: string) => expenses.filter(e => e.dealId === dealId);
 
   const getDealNetCommission = (deal: Deal) => {
-    const dealExpenses = getDealExpenses(deal.id);
-    const totalExpenses = dealExpenses.reduce((sum, e) => sum + e.totalCost, 0);
-    // Use actualGci if closed, otherwise expectedGci
-    const revenue = deal.stage === DealStage.CLOSED ? (deal.actualGci || 0) : deal.expectedGci;
-    return revenue - totalExpenses;
+    const totalExpenses = getDealExpenses(deal.id).reduce((sum, e) => sum + e.totalCost, 0);
+    return (deal.commissionEarned || 0) - totalExpenses;
   };
 
-  // Server-Side Demo Toggles
-  const loadDemoData = async () => {
-    await APIService.enableDemoMode();
-    await refreshData();
-  };
-
+  const loadDemoData = async () => { await APIService.enableDemoMode(); await refreshData(); };
   const clearData = async () => {
-    if (isDemo) {
-      // If in demo mode, "Clearing" just means exiting demo mode
-      await APIService.disableDemoMode();
-    } else {
-      // If in production mode, actually clear the persistent storage
-      saveDeals([]);
-      saveExpenses([]);
-      saveActivities([]);
-    }
+    if (isDemo) await APIService.disableDemoMode();
+    else { saveDeals([]); saveExpenses([]); saveActivities([]); }
     await refreshData();
   };
 
   return (
     <AppContext.Provider value={{
-      deals,
-      expenses,
-      activities,
-      settings,
-      theme,
-      isDemo,
-      addDeal,
-      updateDeal,
-      deleteDeal,
-      addExpense,
-      updateExpense,
-      deleteExpense,
-      addActivity,
-      deleteActivity,
-      updateSettings,
-      setTheme,
-      getDealExpenses,
-      getDealNetCommission,
-      loadDemoData,
-      clearData,
-      refreshData
+      deals, expenses, activities, settings, theme, isDemo,
+      addDeal, updateDeal, deleteDeal, addExpense, updateExpense, deleteExpense,
+      addActivity, deleteActivity, updateSettings, setTheme,
+      getDealExpenses, getDealNetCommission, loadDemoData, clearData, refreshData
     }}>
       {children}
     </AppContext.Provider>
@@ -203,8 +134,6 @@ export const AppProvider = ({ children }: { children?: ReactNode }) => {
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within an AppProvider');
   return context;
 };

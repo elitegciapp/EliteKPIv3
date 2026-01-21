@@ -15,8 +15,8 @@ export const Dashboard = () => {
   const closedDeals = deals.filter(d => d.stage === DealStage.CLOSED);
   const closedDealsYTD = closedDeals.filter(d => d.closedAt && new Date(d.closedAt).getFullYear() === currentYear);
   
-  // Use actualGci for closed, expectedGci for pipeline
-  const gciYTD = closedDealsYTD.reduce((sum, d) => sum + (d.actualGci || 0), 0);
+  // Strictly use 'commission' field (realized revenue)
+  const gciYTD = closedDealsYTD.reduce((sum, d) => sum + (d.commission || 0), 0);
   
   // Net Income YTD
   const expensesYTD = expenses.filter(e => new Date(e.date).getFullYear() === currentYear);
@@ -34,7 +34,7 @@ export const Dashboard = () => {
     const month = i; // 0-11
     const gci = closedDealsYTD
         .filter(d => d.closedAt && new Date(d.closedAt).getMonth() === month)
-        .reduce((sum, d) => sum + (d.actualGci || 0), 0);
+        .reduce((sum, d) => sum + (d.commission || 0), 0);
     return { name: new Date(2000, month, 1).toLocaleString('default', { month: 'short' }), gci };
   });
 
@@ -118,8 +118,8 @@ export const Dashboard = () => {
             <h3 className="text-lg font-semibold text-navy dark:text-dark-text-primary font-serif mb-6">Monthly Revenue</h3>
             
             <div className="overflow-x-auto pb-4 -mx-6 px-6 md:mx-0 md:px-0">
-                <div className="h-64 min-w-[600px] md:min-w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                <div className="h-64 w-full min-w-[600px] md:min-w-full">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <BarChart data={monthlyData}>
                             <CartesianGrid strokeDasharray="0" vertical={false} stroke={chartGridColor} />
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: chartTextColor, fontFamily: 'Inter'}} dy={10} />

@@ -10,7 +10,6 @@ export enum DealStage {
 
 export type DealSide = 'BUYER' | 'SELLER';
 
-// Expense/Activity enums remain the same for now
 export enum ExpenseType {
   STANDARD = 'Standard Expense',
   MILEAGE = 'Mileage (Fuel)',
@@ -45,51 +44,42 @@ export enum ActivityCategory {
 
 export interface Deal {
   id: string;
-  name: string;
+  name: string; // Client Name
+  propertyAddress: string;
+  propertyPrice: number;
   dealSide: DealSide;
   stage: DealStage;
   
-  // Canonical Pipeline Fields
   stageEnteredAt: string; // ISO string
-  closeProbabilityBps: number; // 0-10000 (Basis points)
+  closeProbabilityBps: number; // 0-10000
   
-  expectedGci: number;
-  actualGci?: number; // Only for CLOSED
+  commissionEarned: number; // Final realized revenue (only for CLOSED)
   
   createdAt: string; // ISO string
   closedAt?: string; // ISO string (only for CLOSED)
 
-  // Context
   leadSource: string | null;
   otherLeadSource?: string;
   notes?: string;
 
-  // Seller-Specific Fields
-  listPrice?: number | null;
-  commissionRatePct?: number | null;
-  expectedCommission?: number | null;
-  listingDate?: string | null; // ISO
-  closedPrice?: number | null;
+  // Metadata for Seller
+  listingDate?: string | null;
   daysOnMarket?: number | null;
-  priceVariance?: number | null;
 }
 
 export interface Expense {
   id: string;
   dealId?: string;
-  dealSide?: DealSide; // Updated from dealType
+  dealSide?: DealSide;
   type: ExpenseType;
   category: ExpenseCategory;
   date: string;
   notes?: string;
-  
   quantity: number;
   costPerUnit: number;
-
   milesDriven: number;
   mpg: number;
   gasPrice: number;
-  
   gallonsUsed: number;
   fuelCost: number;
   totalCost: number;
@@ -100,7 +90,7 @@ export interface Activity {
   date: string;
   category: ActivityCategory;
   dealId?: string;
-  dealSide?: DealSide; // Updated from dealType
+  dealSide?: DealSide;
   notes?: string;
 }
 
